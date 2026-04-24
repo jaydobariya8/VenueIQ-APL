@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VenueIQ — Next-Gen Stadium Crowd Intelligence</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@0.400.0"></script>
+  <style>
+    :root {
+      --bg: #05070a;
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.4);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --card-bg: rgba(255, 255, 255, 0.03);
+      --card-border: rgba(255, 255, 255, 0.1);
+    }
+
+    html { scroll-behavior: smooth; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+    body { background: var(--bg); color: var(--text); overflow-x: hidden; }
+
+    /* Glassmorphism Background */
+    .bg-blobs {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      z-index: -1; overflow: hidden; opacity: 0.5;
+    }
+    .blob {
+      position: absolute; border-radius: 50%; filter: blur(80px);
+      animation: move 20s infinite alternate;
+    }
+    .blob-1 { width: 500px; height: 500px; background: #064e3b; top: -100px; right: -100px; }
+    .blob-2 { width: 400px; height: 400px; background: #111827; bottom: -50px; left: -50px; }
+    @keyframes move { from { transform: translate(0, 0); } to { transform: translate(50px, 50px); } }
+
+    /* Navigation */
+    nav {
+      padding: 32px 80px; display: flex; justify-content: space-between; align-items: center;
+      position: fixed; top: 0; width: 100%; z-index: 100;
+      background: rgba(5, 7, 10, 0.8); backdrop-filter: blur(10px);
+    }
+    .logo { display: flex; align-items: center; gap: 12px; font-weight: 900; font-size: 24px; letter-spacing: -1px; }
+    .logo span { color: var(--accent); }
+    .logo-box { width: 40px; height: 40px; background: var(--accent); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; }
+
+    /* Hero Section */
+    .hero {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 120px 80px 80px 80px; position: relative;
+    }
+    .hero-container {
+      max-width: 1400px; width: 100%; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 60px; align-items: center;
+    }
+    .hero-content h1 {
+      font-size: 72px; font-weight: 900; line-height: 1.05; letter-spacing: -3px; margin-bottom: 24px;
+      background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero-content p { font-size: 20px; color: var(--text-muted); line-height: 1.6; margin-bottom: 40px; max-width: 600px; }
+    
+    .btn-primary {
+      padding: 18px 40px; background: var(--accent); color: white;
+      border: none; border-radius: 16px; font-size: 18px; font-weight: 800;
+      cursor: pointer; transition: all 0.3s; text-decoration: none; display: inline-flex;
+      align-items: center; gap: 12px;
+      box-shadow: 0 10px 30px var(--accent-glow);
+    }
+    .btn-primary:hover { transform: translateY(-4px); box-shadow: 0 15px 40px var(--accent-glow); background: #34d399; }
+
+    .hero-visual {
+      position: relative; border-radius: 32px; overflow: hidden;
+      box-shadow: 0 30px 60px rgba(0,0,0,0.5); border: 1px solid var(--card-border);
+      animation: float 6s ease-in-out infinite;
+    }
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+    .hero-visual img { width: 100%; display: block; border-radius: 32px; }
+
+    /* Features Section */
+    .features { padding: 120px 80px; max-width: 1400px; margin: 0 auto; }
+    .section-header { text-align: center; margin-bottom: 80px; }
+    .section-header h2 { font-size: 48px; font-weight: 900; letter-spacing: -2px; margin-bottom: 16px; }
+    .section-header p { color: var(--text-muted); font-size: 18px; }
+
+    .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .feature-card {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      padding: 40px; border-radius: 24px; transition: all 0.3s;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    .feature-card:hover { border-color: var(--accent); background: rgba(16, 185, 129, 0.05); transform: translateY(-8px); }
+    .feature-icon {
+      width: 56px; height: 56px; background: var(--accent-glow); border-radius: 16px;
+      display: flex; align-items: center; justify-content: center; color: var(--accent);
+    }
+    .feature-card h3 { font-size: 22px; font-weight: 700; }
+    .feature-card p { color: var(--text-muted); line-height: 1.6; }
+
+    footer {
+      padding: 60px 80px; border-top: 1px solid var(--card-border);
+      text-align: center; color: var(--text-muted); font-size: 14px;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .hero-container { grid-template-columns: 1fr; text-align: center; }
+      .hero-content h1 { font-size: 56px; }
+      .hero-content p { margin: 0 auto 40px auto; }
+      .feature-grid { grid-template-columns: 1fr; }
+      nav { padding: 24px 40px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <nav>
+    <div class="logo">
+      <div class="logo-box">V</div>
+      Venue<span>IQ</span>
+    </div>
+    <div style="display: flex; gap: 32px; align-items: center;">
+      <a href="#features" style="color: var(--text-muted); text-decoration: none; font-weight: 600;">Features</a>
+      <a href="#technology" style="color: var(--text-muted); text-decoration: none; font-weight: 600;">Technology</a>
+      <a href="/" class="btn-primary" style="padding: 12px 24px; font-size: 14px;">Launch Dashboard</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-container">
+      <div class="hero-content">
+        <h1>AI Crowd Intelligence for the <span style="color: var(--accent)">Next-Gen</span> Venue</h1>
+        <p>Monitor crowd flow, detect surges, and analyze fan sentiment in real-time. Powered by Google Gemini AI to transform stadium operations into a smart, proactive experience.</p>
+        <div style="display: flex; gap: 16px;">
+          <a href="/" class="btn-primary">
+            Start Monitoring
+            <i data-lucide="arrow-right"></i>
+          </a>
+          <button onclick="window.location.href = '/demo'" class="btn-primary" style="background: transparent; border: 1px solid var(--card-border); box-shadow: none;">
+            Watch Demo
+          </button>
+        </div>
+        <div style="display: flex; gap: 16px; margin-top: 32px; color: var(--text-muted); font-size: 15px; font-weight: 600;">
+          <span>Gemini 2.5 Flash</span>
+          <span>|</span>
+          <span>FastAPI</span>
+          <span>|</span>
+          <span>React 18</span>
+          <span>|</span>
+          <span>OpenCV</span>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <img src="/static/hero.png" alt="VenueIQ Dashboard Preview" />
+      </div>
+    </div>
+  </section>
+
+  <section class="features" id="features">
+    <div class="section-header">
+      <h2>Advanced Operational Intelligence</h2>
+      <p>Building the future of large-scale event management with agentic AI.</p>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon"><i data-lucide="bot"></i></div>
+        <h3>Agentic AI Chatbot</h3>
+        <p>A Gemini-powered digital twin for your venue. Answers complex crowd routing questions and provides real-time operational advice to staff and fans.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><i data-lucide="zap"></i></div>
+        <h3>Predictive Surges</h3>
+        <p>Factors in match events, innings breaks, and historical flow to predict congestion before it happens. Dynamic AI alerts guide your team's response.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><i data-lucide="heart"></i></div>
+        <h3>Sentiment Tracking</h3>
+        <p>Go beyond numbers. Monitor crowd mood across different zones to detect frustration or delight, allowing for proactive guest service interventions.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="features" id="technology" style="border-top: 1px solid var(--card-border);">
+    <div class="section-header">
+      <h2>The AI Stack</h2>
+      <p>Cutting-edge technologies powering real-time intelligence.</p>
+    </div>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon"><i data-lucide="brain-circuit"></i></div>
+        <h3>Google Gemini 2.5</h3>
+        <p>Advanced function calling and tool-use allows our agent to reason over live stadium data and match context to provide human-like advice.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><i data-lucide="eye"></i></div>
+        <h3>OpenCV Vision</h3>
+        <p>Real-time person and face detection models analyze venue camera feeds to provide accurate headcounts and flow metrics.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><i data-lucide="server"></i></div>
+        <h3>FastAPI Backend</h3>
+        <p>A high-performance asynchronous Python backend that orchestrates data from cricket APIs, CV models, and AI agents with sub-second latency.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>Built with ❤️ for Build with AI Hackathon, Ahmedabad 2026. Powered by Google Cloud & Gemini AI.</p>
+  </footer>
+
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>

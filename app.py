@@ -96,6 +96,11 @@ async def root():
     return FileResponse("static/index.html")
 
 
+@app.get("/landing")
+async def landing():
+    return FileResponse("static/landing.html")
+
+
 @app.get("/demo")
 async def demo():
     return FileResponse("static/demo.html")

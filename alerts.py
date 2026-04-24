@@ -5,7 +5,56 @@ from datetime import datetime, timezone, timedelta
 from google import genai
 import store
 
-_store: list[dict] = []
+_store: list[dict] = [
+    {
+        "id": "mock-1",
+        "zone_key": "restroom_a",
+        "zone_name": "Restroom Block A",
+        "zone_id": "WC-N",
+        "section": "North Stand",
+        "severity": "CRITICAL",
+        "trigger": "94% occupancy",
+        "staff_alert": "Critical crowd surge at Restroom Block A. Deploy flow control team to divert fans to Level 2 facilities immediately.",
+        "pa_message": "Fans near North Stand: Restroom Block A is currently busy. Please use level 2 facilities for faster service.",
+        "action": "deploy_staff",
+        "occupancy_percent": 94,
+        "wait_time_min": 11,
+        "timestamp": (datetime.now(timezone.utc) - timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "acknowledged": False,
+    },
+    {
+        "id": "mock-2",
+        "zone_key": "concession_hall",
+        "zone_name": "Main Concession Hall",
+        "zone_id": "FC-1",
+        "section": "Level 1 Concourse",
+        "severity": "WARNING",
+        "trigger": "25 min wait time",
+        "staff_alert": "Wait times at Main Concession Hall exceeded 20m. Open auxiliary counters 4 and 5 to reduce congestion.",
+        "pa_message": "Enjoy the match! Auxiliary food counters are now open in the South Stand for your convenience.",
+        "action": "open_overflow",
+        "occupancy_percent": 89,
+        "wait_time_min": 25,
+        "timestamp": (datetime.now(timezone.utc) - timedelta(minutes=12)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "acknowledged": False,
+    },
+    {
+        "id": "mock-3",
+        "zone_key": "vip_lounge",
+        "zone_name": "VIP Premier Lounge",
+        "zone_id": "VIP-1",
+        "section": "Corporate Box Level",
+        "severity": "WARNING",
+        "trigger": "low sentiment (0.38)",
+        "staff_alert": "Sentiment dip detected in VIP Lounge. Frustration due to catering delays. Sending guest relations supervisor.",
+        "pa_message": "",
+        "action": "monitor",
+        "occupancy_percent": 65,
+        "wait_time_min": 5,
+        "timestamp": (datetime.now(timezone.utc) - timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "acknowledged": False,
+    }
+]
 _MAX = 20
 
 

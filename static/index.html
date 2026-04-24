@@ -1,1105 +1,674 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VenueIQ — Crowd Intelligence</title>
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <title>VenueIQ — AI Crowd Intelligence</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@0.400.0"></script>
   <style>
     :root {
-      --bg:        #0b0f18;
-      --sidebar:   #0f1521;
-      --card:      #141d2e;
-      --card2:     #1a2540;
-      --border:    #1e2d47;
-      --border2:   #243352;
-      --text:      #e2e8f0;
-      --muted:     #4b607a;
-      --muted2:    #7a93b0;
-      --accent:    #f97316;
-      --accent-d:  rgba(249,115,22,0.14);
-      --accent-b:  rgba(249,115,22,0.28);
-      --green:     #22c55e;
-      --green-d:   rgba(34,197,94,0.13);
-      --yellow:    #eab308;
-      --yellow-d:  rgba(234,179,8,0.13);
-      --red:       #ef4444;
-      --red-d:     rgba(239,68,68,0.13);
-      --blue:      #3b82f6;
-      --blue-d:    rgba(59,130,246,0.13);
-      --purple:    #a855f7;
-      --purple-d:  rgba(168,85,247,0.13);
-      --pink:      #ec4899;
+      /* Theme Variables */
+      --bg-primary: #f8fafc;
+      --bg-secondary: #ffffff;
+      --bg-sidebar: #ffffff;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f1f5f9;
+      --text-primary: #0f172a;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      --border: #e2e8f0;
+      --accent: #16a34a; 
+      --accent-soft: rgba(22, 163, 74, 0.08);
+      --accent-hover: #15803d;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #10b981;
+      --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+      --radius: 12px;
     }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body, #root { height: 100%; overflow: hidden; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
-      -webkit-font-smoothing: antialiased;
+
+    [data-theme="dark"] {
+      --bg-primary: #05070a;
+      --bg-secondary: #0a0c12;
+      --bg-sidebar: #0a0c12;
+      --bg-card: #11141d;
+      --bg-card-hover: #181c27;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #475569;
+      --border: #1e293b;
+      --accent: #10b981;
+      --accent-soft: rgba(16, 185, 129, 0.1);
+      --accent-hover: #34d399;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     }
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
-    button, input, select { font-family: inherit; }
-    button { cursor: pointer; border: none; background: none; color: inherit; }
-    input, select { outline: none; }
 
-    /* Layout grid */
-    .layout {
-      display: grid;
-      grid-template-columns: 1fr;
-      grid-template-rows: 58px 1fr;
-      height: 100vh;
-      overflow: hidden;
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+    body { background: var(--bg-primary); color: var(--text-primary); transition: background 0.3s, color 0.3s; height: 100vh; overflow: hidden; }
+    
+    /* Layout */
+    .app-container { display: flex; height: 100vh; width: 100vw; }
+    
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 32px 24px;
+      transition: all 0.3s;
+      flex-shrink: 0;
     }
-    .topbar { grid-column: 1; grid-row: 1; background: var(--sidebar); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; gap: 12px; }
-    .main   { grid-column: 1; grid-row: 2; overflow-y: auto; padding: 20px; }
-
-    /* FAB (floating action buttons) */
-    .fab {
-      position: fixed; border-radius: 50%; border: none; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: transform .15s, box-shadow .15s;
-      z-index: 501;
+    .logo-container { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; }
+    .logo-icon {
+      width: 36px; height: 36px; background: var(--accent);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 800; font-size: 20px;
     }
-    .fab:hover { transform: scale(1.06); }
+    .logo-text { font-weight: 800; font-size: 20px; letter-spacing: -0.5px; }
+    .logo-text span { color: var(--accent); }
 
-    /* Cards */
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
-    .card:hover { border-color: var(--border2); }
-
-    /* Nav item */
+    .nav-section { margin-bottom: 32px; }
+    .nav-label {
+      font-size: 11px; font-weight: 700; color: var(--text-muted);
+      letter-spacing: 1px; margin-bottom: 12px; text-transform: uppercase;
+    }
     .nav-item {
-      display: flex; align-items: center; gap: 9px;
-      padding: 8px 12px; border-radius: 8px;
-      font-size: 12.5px; font-weight: 500;
-      color: var(--muted2); cursor: pointer;
-      transition: background .15s, color .15s;
-      user-select: none;
+      display: flex; align-items: center; gap: 12px; padding: 12px;
+      border-radius: var(--radius); color: var(--text-secondary);
+      text-decoration: none; font-size: 14px; font-weight: 500;
+      transition: all 0.2s; cursor: pointer; margin-bottom: 4px;
     }
-    .nav-item:hover  { background: rgba(255,255,255,0.04); color: var(--text); }
-    .nav-item.active { background: var(--accent-d); color: var(--accent); }
+    .nav-item:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+    .nav-item.active { background: var(--accent-soft); color: var(--accent); }
+    .nav-item i { width: 18px; }
 
-    /* Section label */
-    .sec-label {
-      font-size: 10px; font-weight: 700; letter-spacing: .9px;
-      color: var(--muted); padding: 4px 12px; margin-top: 16px; margin-bottom: 2px;
+    .sidebar-footer { margin-top: auto; border-top: 1px solid var(--border); padding-top: 20px; }
+    
+    /* Main Content */
+    .main-content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; position: relative; }
+    
+    /* Top Header */
+    .header {
+      padding: 24px 40px; display: flex; justify-content: space-between; align-items: center;
+      background: var(--bg-primary); position: sticky; top: 0; z-index: 100;
     }
+    .header-left h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 4px; }
+    .header-left p { color: var(--text-secondary); font-size: 14px; }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+
+    /* Action Buttons */
+    .btn-icon {
+      width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--bg-card); color: var(--text-secondary);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.2s; position: relative;
+    }
+    .btn-icon:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+    .badge-dot {
+      position: absolute; top: 8px; right: 8px; width: 8px; height: 8px;
+      background: var(--danger); border-radius: 50%; border: 2px solid var(--bg-card);
+    }
+
+    /* Content Area */
+    .content-scroll { padding: 0 40px 40px 40px; }
+    
+    /* Stats Row */
+    .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 20px; transition: all 0.3s;
+    }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+    .stat-icon {
+      width: 32px; height: 32px; border-radius: 8px; display: flex;
+      align-items: center; justify-content: center; margin-bottom: 12px;
+      font-size: 18px;
+    }
+    .stat-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+    .stat-value { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+    .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+    /* Match Context Card */
+    .match-banner {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px;
+      padding: 24px; margin-bottom: 24px; position: relative; overflow: hidden;
+    }
+    .match-banner::before {
+      content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--accent);
+    }
+    .match-grid { display: grid; grid-template-columns: 1.5fr 1fr 2fr; gap: 24px; align-items: center; }
+
+    /* Zone Grid */
+    .zone-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+    .zone-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px;
+      padding: 24px; transition: all 0.3s; display: flex; flex-direction: column; gap: 20px;
+    }
+    .zone-card:hover { border-color: var(--accent); box-shadow: var(--shadow); }
+    
+    .zone-header { display: flex; justifyContent: space-between; align-items: flex-start; }
+    .zone-info { display: flex; gap: 12px; }
+    .zone-icon {
+      width: 44px; height: 44px; border-radius: 12px; background: var(--bg-primary);
+      display: flex; align-items: center; justify-content: center; font-size: 20px;
+    }
+    .zone-name { font-weight: 700; font-size: 16px; margin-bottom: 2px; }
+    .zone-cat { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px; }
+
+    .occupancy-ring { position: relative; width: 64px; height: 64px; }
+    .occupancy-val {
+      position: absolute; inset: 0; display: flex; align-items: center;
+      justify-content: center; font-weight: 800; font-size: 14px;
+    }
+
+    .wait-stat { margin-top: 4px; }
+    .wait-val { font-size: 32px; font-weight: 800; color: var(--text-primary); line-height: 1; }
+    .wait-label { font-size: 12px; color: var(--text-secondary); margin-left: 4px; }
+
+    .emotion-bars { display: flex; flex-direction: column; gap: 8px; }
+    .emotion-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .progress-bg { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+
+    /* Floating Chat */
+    .chat-fab {
+      position: fixed; bottom: 32px; right: 32px; width: 64px; height: 64px;
+      background: var(--accent); color: white; border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; box-shadow: 0 10px 25px rgba(16, 185, 129, 0.4);
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 1000;
+    }
+    .chat-fab:hover { transform: scale(1.05) translateY(-4px); }
+    
+    .chat-window {
+      position: fixed; bottom: 108px; right: 32px; width: 420px; height: 600px;
+      background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 24px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column;
+      overflow: hidden; z-index: 1000; transform-origin: bottom right;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .chat-suggestion {
+      padding: 8px 12px; background: var(--bg-card-hover); border: 1px solid var(--border);
+      border-radius: 12px; font-size: 12px; cursor: pointer; transition: all 0.2s;
+      color: var(--text-secondary); font-weight: 500;
+    }
+    .chat-suggestion:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 
     /* Animations */
-    @keyframes pulse     { 0%,100%{opacity:1} 50%{opacity:.35} }
-    @keyframes fadeSlide { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
-    @keyframes shimmer   { 0%{background-position:-800px 0} 100%{background-position:800px 0} }
-    .live-dot  { animation: pulse 1.6s ease-in-out infinite; }
-    .fade-in   { animation: fadeSlide .3s ease forwards; }
-    .shimmer-box {
-      background: linear-gradient(90deg, var(--card) 25%, var(--card2) 50%, var(--card) 75%);
-      background-size: 1600px 100%; animation: shimmer 1.8s linear infinite;
-      border-radius: 12px;
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+    .pulse { animation: pulse 2s infinite; }
+
+    @keyframes livePulse {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .live-button-highlight {
+      animation: livePulse 2s infinite;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
     }
 
-    /* Zone card grid */
-    .zone-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-
-    /* Stat chips */
-    .chip {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 9px; border-radius: 99px;
-      font-size: 11px; font-weight: 600; letter-spacing: .2px;
+    /* Skeleton */
+    .shimmer {
+      background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-card-hover) 50%, var(--bg-card) 75%);
+      background-size: 200% 100%; animation: shimmerAnim 1.5s infinite;
     }
+    @keyframes shimmerAnim { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
-    /* Input style */
-    .input-base {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: 8px; color: var(--text); font-size: 12.5px;
-      transition: border-color .15s;
-    }
-    .input-base:focus { border-color: var(--accent); }
-    .input-base::placeholder { color: var(--muted); }
-
-    /* Icon box */
-    .icon-box {
-      border-radius: 10px; display: flex; align-items: center;
-      justify-content: center; flex-shrink: 0;
-    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
   </style>
 </head>
 <body>
-<div id="root"></div>
+  <div id="root"></div>
 
-<script type="text/babel">
-const { useState, useEffect, useCallback, useRef } = React;
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useRef } = React;
 
-/* ── helpers ──────────────────────────────────────────────────────────── */
-const zoneIcon = k => k.includes('restroom') ? '🚻' : k.includes('concession') ? '🍕' : '🏆';
-const zoneCat  = k => k.includes('restroom') ? 'RESTROOM' : k.includes('concession') ? 'FOOD' : 'LOUNGE';
+    /* ── Components ────────────────────────────────────────────────────────── */
 
-const occMeta = pct => pct < 50
-  ? { color: 'var(--green)',  dim: 'var(--green-d)',  label: 'CLEAR'    }
-  : pct < 75
-  ? { color: 'var(--yellow)', dim: 'var(--yellow-d)', label: 'MODERATE' }
-  : { color: 'var(--red)',    dim: 'var(--red-d)',     label: 'CROWDED'  };
-
-const sentMeta = s => s >= 0.70
-  ? { color: 'var(--green)',  emoji: '😊', label: 'Happy'     }
-  : s >= 0.55
-  ? { color: 'var(--yellow)', emoji: '😐', label: 'Neutral'   }
-  : { color: 'var(--red)',    emoji: '😤', label: 'Frustrated' };
-
-const fmtTime = iso => {
-  try {
-    const d = new Date(iso), diff = Math.floor((Date.now() - d) / 1000);
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    return d.toLocaleTimeString();
-  } catch { return '--'; }
-};
-
-const api = (path, opts) => fetch(path, opts).then(r => r.json());
-
-/* ── AlertToast ───────────────────────────────────────────────────────── */
-function AlertToast({ alert, onDismiss }) {
-  const hi = alert.severity === 'HIGH';
-  const borderColor = hi ? 'var(--red)' : 'var(--yellow)';
-  return (
-    <div className="fade-in" style={{
-      background: 'var(--card)', border: `1px solid ${borderColor}`,
-      borderLeft: `4px solid ${borderColor}`, borderRadius: 10,
-      padding: '12px 14px', maxWidth: 320,
-      boxShadow: `0 8px 32px ${hi ? 'rgba(239,68,68,0.2)' : 'rgba(234,179,8,0.15)'}`,
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-            <span style={{ fontSize: 10, fontWeight: 800, color: borderColor, letterSpacing: .6 }}>
-              {hi ? '🚨' : '⚠️'} {alert.severity} ALERT
-            </span>
-            <span style={{ fontSize: 9.5, color: 'var(--muted)', background: 'rgba(255,255,255,0.05)', padding: '1px 6px', borderRadius: 4 }}>
-              {alert.zone_id}
-            </span>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{alert.staff_alert}</div>
-        </div>
-        <button onClick={onDismiss} style={{ color: 'var(--muted)', fontSize: 18, lineHeight: 1, flexShrink: 0, marginTop: -2, cursor: 'pointer' }}>×</button>
-      </div>
-    </div>
-  );
-}
-
-/* ── ToastContainer ───────────────────────────────────────────────────── */
-function ToastContainer({ toasts, onDismiss }) {
-  if (!toasts.length) return null;
-  return (
-    <div style={{ position: 'fixed', top: 72, right: 16, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 320 }}>
-      {toasts.map(t => <AlertToast key={t.toastId} alert={t} onDismiss={() => onDismiss(t.toastId)} />)}
-    </div>
-  );
-}
-
-/* ── AlertCard ────────────────────────────────────────────────────────── */
-function AlertCard({ alert, onAcknowledge }) {
-  const [showPA, setShowPA] = useState(false);
-  const hi    = alert.severity === 'HIGH';
-  const color = hi ? 'var(--red)' : 'var(--yellow)';
-  const dim   = hi ? 'var(--red-d)' : 'var(--yellow-d)';
-  return (
-    <div className="card" style={{ marginBottom: 10, padding: '13px 14px', borderLeft: `3px solid ${color}`, opacity: alert.acknowledged ? 0.5 : 1, transition: 'opacity .3s' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 7 }}>
-        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-          <span className="chip" style={{ background: dim, color, fontSize: 9 }}>{hi ? '🚨' : '⚠️'} {alert.severity}</span>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--muted2)', background: 'rgba(255,255,255,0.05)', padding: '1px 6px', borderRadius: 4 }}>{alert.zone_id}</span>
-        </div>
-        <span style={{ fontSize: 9.5, color: 'var(--muted)' }}>{fmtTime(alert.timestamp)}</span>
-      </div>
-      <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 2 }}>{alert.zone_name}</div>
-      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 9 }}>{alert.trigger} · {alert.occupancy_percent}% full · {alert.wait_time_min} min wait</div>
-      <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '9px 10px', marginBottom: 7 }}>
-        <div style={{ fontSize: 9, color, fontWeight: 800, letterSpacing: .6, marginBottom: 3 }}>OPS TEAM</div>
-        <div style={{ fontSize: 12, lineHeight: 1.55 }}>{alert.staff_alert}</div>
-      </div>
-      {showPA && (
-        <div className="fade-in" style={{ background: 'var(--blue-d)', border: '1px solid rgba(59,130,246,0.28)', borderRadius: 7, padding: '9px 10px', marginBottom: 7 }}>
-          <div style={{ fontSize: 9, color: 'var(--blue)', fontWeight: 800, letterSpacing: .6, marginBottom: 3 }}>📢 PA BROADCAST</div>
-          <div style={{ fontSize: 12, lineHeight: 1.55 }}>{alert.pa_message}</div>
-        </div>
-      )}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <button onClick={() => setShowPA(!showPA)} style={{
-          padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-          background: showPA ? 'var(--blue-d)' : 'rgba(255,255,255,0.04)',
-          color: showPA ? 'var(--blue)' : 'var(--muted2)',
-          border: `1px solid ${showPA ? 'rgba(59,130,246,0.3)' : 'var(--border)'}`,
-        }}>📢 PA Message</button>
-        {!alert.acknowledged
-          ? <button onClick={() => onAcknowledge(alert.id)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(255,255,255,0.04)', color: 'var(--muted2)', border: '1px solid var(--border)' }}>✓ Acknowledge</button>
-          : <span style={{ fontSize: 10, color: 'var(--green)', padding: '4px 0', display: 'flex', alignItems: 'center' }}>✓ Acknowledged</span>
-        }
-      </div>
-    </div>
-  );
-}
-
-/* ── AlertPanel ───────────────────────────────────────────────────────── */
-function AlertPanel({ alerts, onClose, onAcknowledge, onRefresh }) {
-  const high = alerts.filter(a => a.severity === 'HIGH').length;
-  const med  = alerts.filter(a => a.severity === 'MEDIUM').length;
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }} onClick={onClose}>
-      <div className="fade-in" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 390, background: 'var(--sidebar)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
-        onClick={e => e.stopPropagation()}>
-        {/* header */}
-        <div style={{ padding: '18px 18px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>🔔 AI Alert Feed</div>
-              <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>Gemini-powered operational intelligence</div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={onRefresh} style={{ padding: '5px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', color: 'var(--muted2)', cursor: 'pointer' }}>↻ Check Now</button>
-              <button onClick={onClose} style={{ color: 'var(--muted2)', fontSize: 22, lineHeight: 1, cursor: 'pointer' }}>×</button>
-            </div>
-          </div>
-          {alerts.length > 0 && (
-            <div style={{ display: 'flex', gap: 7 }}>
-              {high > 0 && <span className="chip" style={{ background: 'var(--red-d)', color: 'var(--red)', fontSize: 10 }}>🚨 {high} HIGH</span>}
-              {med  > 0 && <span className="chip" style={{ background: 'var(--yellow-d)', color: 'var(--yellow)', fontSize: 10 }}>⚠️ {med} MEDIUM</span>}
-            </div>
-          )}
-        </div>
-        {/* content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
-          {alerts.length === 0
-            ? <div style={{ textAlign: 'center', paddingTop: 60 }}>
-                <div style={{ fontSize: 36, marginBottom: 10 }}>✅</div>
-                <div style={{ fontSize: 13, color: 'var(--muted)' }}>All zones within normal parameters</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>Simulate a surge to trigger AI alerts</div>
-              </div>
-            : alerts.map(a => <AlertCard key={a.id} alert={a} onAcknowledge={onAcknowledge} />)
+    const Icon = ({ name, size = 18, color = "currentColor", className = "" }) => {
+      useEffect(() => {
+        try {
+          if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
           }
+        } catch (e) { }
+      }, [name]);
+      return <i data-lucide={name} className={className} style={{ width: size, height: size, color: color }}></i>;
+    };
+
+    const ThemeToggle = ({ theme, toggle }) => (
+      <div className="nav-item" onClick={toggle}>
+        <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+        <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+      </div>
+    );
+
+    const StatCard = ({ icon, label, value, sub, color, bg }) => (
+      <div className="stat-card fade-in">
+        <div className="stat-icon" style={{ background: bg, color: color }}>
+          {icon}
         </div>
+        <div className="stat-label">{label}</div>
+        <div className="stat-value">{value}</div>
+        <div className="stat-sub">{sub}</div>
       </div>
-    </div>
-  );
-}
+    );
 
-/* ── CircleGauge ──────────────────────────────────────────────────────── */
-function CircleGauge({ pct, color, size = 76, sw = 7 }) {
-  const r = (size - sw * 2) / 2;
-  const circ = 2 * Math.PI * r;
-  const offset = circ * (1 - Math.min(pct, 100) / 100);
-  const c = size / 2;
-  return (
-    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', display: 'block' }}>
-        <circle cx={c} cy={c} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={sw} />
-        <circle cx={c} cy={c} r={r} fill="none" stroke={color} strokeWidth={sw}
-          strokeLinecap="round"
-          strokeDasharray={circ} strokeDashoffset={offset}
-          style={{ transition: 'stroke-dashoffset .7s cubic-bezier(.4,0,.2,1), stroke .5s ease' }}
-        />
-      </svg>
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: size * 0.195, fontWeight: 800, color, lineHeight: 1 }}>{pct}%</span>
-      </div>
-    </div>
-  );
-}
-
-/* ── MiniBar ──────────────────────────────────────────────────────────── */
-function MiniBar({ val, color }) {
-  return (
-    <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-      <div style={{ width: `${val}%`, height: '100%', borderRadius: 99, background: color, transition: 'width .6s ease' }} />
-    </div>
-  );
-}
-
-/* ── ZoneCard ─────────────────────────────────────────────────────────── */
-function ZoneCard({ zoneKey, zone }) {
-  const pct  = zone.occupancy_percent;
-  const om   = occMeta(pct);
-  const sm   = sentMeta(zone.emotion.avg_sentiment_score);
-
-  return (
-    <div className="card fade-in" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14, transition: 'border-color .2s' }}
-      onMouseEnter={e => e.currentTarget.style.borderColor = om.color}
-      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-    >
-      {/* ── row 1: identity + gauge ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          {/* zone icon + name */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
-            <div className="icon-box" style={{ width: 36, height: 36, background: om.dim, fontSize: 17 }}>
-              {zoneIcon(zoneKey)}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                <div style={{ fontWeight: 700, fontSize: 12.5, lineHeight: 1.2 }}>{zone.name}</div>
-                {zone.zone_id && (
-                  <span style={{ fontSize: 9, fontWeight: 700, background: 'rgba(255,255,255,0.06)', color: 'var(--muted2)', padding: '1px 6px', borderRadius: 4, letterSpacing: .5 }}>
-                    {zone.zone_id}
-                  </span>
-                )}
+    const ZoneCard = ({ zone, zoneKey }) => {
+      const pct = zone.occupancy_percent || 0;
+      const getStatusColor = (p) => p < 50 ? 'var(--success)' : p < 75 ? 'var(--warning)' : 'var(--danger)';
+      const color = getStatusColor(pct);
+      
+      return (
+        <div className="zone-card fade-in">
+          <div className="zone-header">
+            <div className="zone-info">
+              <div className="zone-icon">
+                {zoneKey.includes('restroom') ? '🚻' : zoneKey.includes('concession') ? '🍕' : '🏆'}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
-                <span className="chip" style={{ background: om.dim, color: om.color, fontSize: 9 }}>{om.label}</span>
-                {zone.section && <span style={{ fontSize: 9.5, color: 'var(--muted)' }}>{zone.section}</span>}
+              <div>
+                <div className="zone-name">{zone.name}</div>
+                <div className="zone-cat">{zone.zone_id} • {zone.section}</div>
               </div>
             </div>
-          </div>
-
-          {/* capacity bar */}
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-              <span style={{ fontSize: 11, color: 'var(--muted2)' }}>Occupancy</span>
-              <span style={{ fontSize: 11, color: 'var(--muted2)' }}>{zone.count} / {zone.capacity}</span>
+            <div className="occupancy-ring">
+              <svg width="64" height="64" viewBox="0 0 64 64">
+                <circle cx="32" cy="32" r="28" fill="none" stroke="var(--border)" strokeWidth="6" />
+                <circle cx="32" cy="32" r="28" fill="none" stroke={color} strokeWidth="6" 
+                  strokeDasharray={2 * Math.PI * 28} 
+                  strokeDashoffset={2 * Math.PI * 28 * (1 - pct/100)}
+                  strokeLinecap="round" transform="rotate(-90 32 32)"
+                  style={{ transition: 'stroke-dashoffset 1s ease' }}
+                />
+              </svg>
+              <div className="occupancy-val" style={{ color: color }}>{pct}%</div>
             </div>
-            <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden' }}>
-              <div style={{ width: `${pct}%`, height: '100%', background: om.color, borderRadius: 99, transition: 'width .7s ease' }} />
+          </div>
+
+          <div className="wait-stat">
+            <div className="stat-label">CURRENT WAIT</div>
+            <div style={{ display: 'flex', alignItems: 'baseline' }}>
+              <span className="wait-val" style={{ color: color }}>{zone.wait_time_min}</span>
+              <span className="wait-label">minutes</span>
             </div>
           </div>
 
-          {/* wait time */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-            <span style={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color: om.color }}>{zone.wait_time_min}</span>
-            <span style={{ fontSize: 12, color: 'var(--muted2)' }}>min wait</span>
-          </div>
-        </div>
-
-        {/* gauge */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-          <CircleGauge pct={pct} color={om.color} size={78} sw={7} />
-          <span style={{ fontSize: 10, color: 'var(--muted)' }}>occupancy</span>
-        </div>
-      </div>
-
-      {/* ── divider ── */}
-      <div style={{ height: 1, background: 'var(--border)' }} />
-
-      {/* ── emotion rows ── */}
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9 }}>
-          <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, letterSpacing: .7 }}>CROWD EMOTION</span>
-          <span style={{ fontSize: 12, fontWeight: 800, color: sm.color }}>
-            {sm.emoji} {zone.emotion.avg_sentiment_score.toFixed(2)} &nbsp;
-            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted2)' }}>{sm.label}</span>
-          </span>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {[
-            { emoji: '😊', key: 'happy',      color: 'var(--green)'  },
-            { emoji: '😐', key: 'neutral',    color: 'var(--blue)'   },
-            { emoji: '😞', key: 'sad',        color: 'var(--muted2)' },
-            { emoji: '😤', key: 'frustrated', color: 'var(--red)'    },
-          ].map(({ emoji, key, color }) => (
-            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span style={{ fontSize: 13, width: 20 }}>{emoji}</span>
-              <MiniBar val={zone.emotion[key]} color={color} />
-              <span style={{ fontSize: 11, color: 'var(--muted)', minWidth: 30, textAlign: 'right' }}>
-                {zone.emotion[key]}%
+          <div className="emotion-bars">
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span className="nav-label" style={{ margin: 0, fontSize: 9 }}>Crowd Sentiment</span>
+              <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--accent)' }}>
+                {(zone.emotion.avg_sentiment_score || 0).toFixed(2)} Score
               </span>
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── footer ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 10, color: 'var(--muted)' }}>Updated {fmtTime(zone.last_updated)}</span>
-        <div style={{ width: 7, height: 7, borderRadius: '50%', background: om.color }} className="live-dot" />
-      </div>
-    </div>
-  );
-}
-
-/* ── StatCard ─────────────────────────────────────────────────────────── */
-function StatCard({ icon, label, value, sub, color, dim }) {
-  return (
-    <div className="card" style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-      <div className="icon-box" style={{ width: 46, height: 46, background: dim, fontSize: 21 }}>{icon}</div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 10.5, color: 'var(--muted)', letterSpacing: .6, fontWeight: 700, marginBottom: 3 }}>{label}</div>
-        <div style={{ fontSize: 24, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-        {sub && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{sub}</div>}
-      </div>
-    </div>
-  );
-}
-
-/* ── MatchPanel ───────────────────────────────────────────────────────── */
-function MatchPanel({ stats }) {
-  if (!stats) return <div className="shimmer-box" style={{ height: 260, margin: 14 }} />;
-  const mc     = stats.match_context;
-  const minLeft = (mc.innings_break_minute || 90) - mc.current_minute;
-  const sm     = sentMeta(mc.overall_crowd_sentiment);
-
-  return (
-    <div style={{ padding: '14px 14px 0', overflowY: 'auto' }}>
-      <div className="sec-label" style={{ marginTop: 0, padding: 0, marginBottom: 10 }}>MATCH CONTEXT</div>
-
-      {/* Teams + score */}
-      <div className="card" style={{
-        padding: '12px 14px', marginBottom: 8,
-        background: 'linear-gradient(135deg,rgba(249,115,22,0.08),rgba(249,115,22,0.02))',
-        borderColor: 'var(--accent-b)',
-      }}>
-        {/* team row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color: '#ff4444', lineHeight: 1 }}>{mc.team_a}</div>
-            <div style={{ fontSize: 9, color: 'var(--muted)', letterSpacing: .8, marginTop: 2 }}>
-              {mc.batting_team === mc.team_a ? '🏏 BATTING' : 'BOWLING'}
-            </div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--accent)', lineHeight: 1 }}>{mc.score}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>Ov {mc.overs}</div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--blue)', lineHeight: 1 }}>{mc.team_b}</div>
-            <div style={{ fontSize: 9, color: 'var(--muted)', letterSpacing: .8, marginTop: 2 }}>
-              {mc.batting_team === mc.team_b ? '🏏 BATTING' : 'BOWLING'}
-            </div>
-          </div>
-        </div>
-        {/* run rate + break countdown */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-          <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '7px 8px' }}>
-            <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 1 }}>RUN RATE</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--accent)' }}>{mc.run_rate}</div>
-          </div>
-          <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '7px 8px' }}>
-            <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 1 }}>INNINGS</div>
-            <div style={{ fontSize: 17, fontWeight: 800 }}>{mc.innings}</div>
-          </div>
-          <div style={{ background: minLeft <= 8 ? 'var(--red-d)' : 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '7px 8px' }}>
-            <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 1 }}>BREAK IN</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: minLeft <= 8 ? 'var(--red)' : 'var(--yellow)' }}>
-              {minLeft > 0 ? `${minLeft}m` : 'NOW!'}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Attendance */}
-      <div className="card" style={{ padding: '9px 12px', marginBottom: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-          <span style={{ fontSize: 9.5, color: 'var(--muted)', fontWeight: 700, letterSpacing: .7 }}>🏟 ATTENDANCE</span>
-          <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>
-            {mc.attendance?.toLocaleString()} <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 500 }}>/ {mc.stadium_capacity?.toLocaleString()}</span>
-          </span>
-        </div>
-        <div style={{ height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-          <div style={{ width: `${mc.attendance_pct || 0}%`, height: '100%', borderRadius: 99, background: 'var(--accent)', transition: 'width .6s ease' }} />
-        </div>
-        <div style={{ fontSize: 9.5, color: 'var(--muted)', marginTop: 4 }}>{mc.attendance_pct}% capacity · {mc.venue}</div>
-      </div>
-
-      {/* Event */}
-      <div className="card" style={{ padding: '9px 12px', marginBottom: 8, borderColor: 'var(--accent-b)', background: 'var(--accent-d)' }}>
-        <div style={{ fontSize: 9.5, color: 'var(--accent)', fontWeight: 700, letterSpacing: .8, marginBottom: 3 }}>⚡ LATEST EVENT</div>
-        <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.5 }}>{mc.recent_event}</div>
-      </div>
-
-      {/* Vibe */}
-      <div className="card" style={{ padding: '10px 12px', marginBottom: 10 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
-          <span style={{ fontSize: 9.5, color: 'var(--muted)', fontWeight: 700, letterSpacing: .7 }}>CROWD VIBE</span>
-          <span style={{ fontSize: 12, fontWeight: 800, color: sm.color }}>{sm.emoji} {mc.overall_crowd_sentiment.toFixed(2)}</span>
-        </div>
-        <div style={{ height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-          <div style={{ width: `${mc.overall_crowd_sentiment * 100}%`, height: '100%', borderRadius: 99, background: sm.color, transition: 'width .6s ease' }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}>
-          <span style={{ fontSize: 9.5, color: 'var(--muted)' }}>Density: <b style={{ color: mc.crowd_density === 'HIGH' ? 'var(--red)' : mc.crowd_density === 'MEDIUM' ? 'var(--yellow)' : 'var(--green)' }}>{mc.crowd_density}</b></span>
-          <span style={{ fontSize: 9.5, color: sm.color }}>{sm.label}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── ChatPanel ────────────────────────────────────────────────────────── */
-function ChatPanel({ onClose }) {
-  const [q, setQ]             = useState('');
-  const [msgs, setMsgs]       = useState([]);
-  const [busy, setBusy]       = useState(false);
-  const [healthy, setHealthy] = useState(true);
-  const endRef                = useRef(null);
-
-  useEffect(() => {
-    api('/health').then(d => setHealthy(d.google_api_key !== false)).catch(() => setHealthy(false));
-  }, []);
-
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
-
-  const QUICK = [
-    'Where should I go to the bathroom?',
-    'Which food area is best right now?',
-    'Which zone has most frustrated fans?',
-    'Give me a full venue status report',
-  ];
-
-  const TOOL_COLORS = {
-    get_all_zones:          ['var(--blue)',   'var(--blue-d)'   ],
-    get_zone_status:        ['var(--purple)', 'var(--purple-d)' ],
-    get_match_context:      ['var(--accent)', 'var(--accent-d)' ],
-    recommend_zone:         ['var(--green)',  'var(--green-d)'  ],
-    get_sentiment_insights: ['var(--pink)',   'var(--purple-d)' ],
-  };
-
-  const send = async (text) => {
-    const msg = (text || q).trim();
-    if (!msg || busy) return;
-    setQ('');
-    setBusy(true);
-    setMsgs(m => [...m, { role: 'user', text: msg }]);
-    try {
-      const res = await api('/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: msg }),
-      });
-      setMsgs(m => [...m, { role: 'agent', text: res.answer || '(no response)', tools: res.tools_used || [] }]);
-    } catch (e) {
-      const hint = e.message === 'Failed to fetch'
-        ? '⚠️ Cannot reach server. Make sure app.py is running on port 8000.'
-        : '⚠️ ' + e.message;
-      setMsgs(m => [...m, { role: 'agent', text: hint, tools: [] }]);
-    }
-    setBusy(false);
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, borderTop: '1px solid var(--border)', minHeight: 0, overflow: 'hidden' }}>
-      {/* header */}
-      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0, background: 'linear-gradient(135deg,rgba(249,115,22,0.06),transparent)' }}>
-        <div className="icon-box" style={{ width: 34, height: 34, background: 'var(--accent-d)', border: '1px solid var(--accent-b)', fontSize: 16 }}>🤖</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 800, fontSize: 13.5 }}>VenueIQ Agent</div>
-          <div style={{ fontSize: 10, color: healthy ? 'var(--green)' : 'var(--red)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-            <span className="live-dot" style={{ width: 5, height: 5, borderRadius: '50%', background: healthy ? 'var(--green)' : 'var(--red)', display: 'inline-block' }} />
-            {healthy ? 'Gemini · Live Tool Use' : 'API key missing — check .env'}
-          </div>
-        </div>
-        {onClose && (
-          <button onClick={onClose} style={{ color: 'var(--muted)', fontSize: 18, lineHeight: 1, cursor: 'pointer', flexShrink: 0 }}>✕</button>
-        )}
-      </div>
-
-      {/* messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {msgs.length === 0 && (
-          <div style={{ paddingTop: 8 }}>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 32, marginBottom: 6 }}>🏟️</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 3 }}>Ask me anything about the venue</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Real-time crowd intelligence · Zone recommendations</div>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, justifyContent: 'center' }}>
-              {QUICK.map(q => (
-                <button key={q} onClick={() => send(q)} style={{
-                  padding: '7px 13px', borderRadius: 99,
-                  background: 'rgba(249,115,22,0.08)',
-                  border: '1px solid rgba(249,115,22,0.25)',
-                  color: 'var(--accent)', fontSize: 11.5, cursor: 'pointer',
-                  transition: 'all .15s', lineHeight: 1.4,
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(249,115,22,0.18)'; e.currentTarget.style.borderColor = 'var(--accent)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(249,115,22,0.08)'; e.currentTarget.style.borderColor = 'rgba(249,115,22,0.25)'; }}
-                >{q}</button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {msgs.map((m, i) => (
-          <div key={i} className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 5 }}>
-            <div style={{
-              maxWidth: '91%', padding: '9px 12px', fontSize: 12, lineHeight: 1.65,
-              borderRadius: m.role === 'user' ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
-              background: m.role === 'user'
-                ? 'linear-gradient(135deg,var(--accent),#fb923c)'
-                : 'var(--card2)',
-              border: m.role === 'user' ? 'none' : '1px solid var(--border)',
-              color: m.role === 'user' ? '#fff' : 'var(--text)',
-            }}>{m.text}</div>
-
-            {m.tools && m.tools.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                {m.tools.map(t => {
-                  const [c, d] = TOOL_COLORS[t] || ['var(--muted2)', 'rgba(255,255,255,0.05)'];
-                  return (
-                    <span key={t} className="chip" style={{ background: d, color: c, border: `1px solid ${c}40`, fontSize: 10 }}>
-                      ⚡ {t.replace(/_/g, ' ')}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
-
-        {busy && (
-          <div className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ display: 'flex', gap: 3 }}>
-              {[0, 1, 2].map(i => (
-                <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: `pulse 1.2s ${i * .22}s infinite` }} />
-              ))}
-            </div>
-            <span style={{ fontSize: 11, color: 'var(--muted)' }}>Analysing zones...</span>
-          </div>
-        )}
-        <div ref={endRef} />
-      </div>
-
-      {/* input */}
-      <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', display: 'flex', gap: 7, flexShrink: 0 }}>
-        <input
-          value={q}
-          onChange={e => setQ(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && send()}
-          placeholder="Ask the agent..."
-          className="input-base"
-          style={{ flex: 1, padding: '8px 11px' }}
-        />
-        <button
-          onClick={() => send()}
-          disabled={busy || !q.trim()}
-          style={{
-            padding: '8px 16px', borderRadius: 8, fontWeight: 700, fontSize: 12,
-            background: busy || !q.trim() ? 'rgba(255,255,255,0.04)' : 'var(--accent)',
-            color:      busy || !q.trim() ? 'var(--muted)' : '#fff',
-            transition: 'all .15s',
-          }}
-        >{busy ? '•••' : 'Ask'}</button>
-      </div>
-    </div>
-  );
-}
-
-/* ── DemoPanel (floating ⚙️ FAB, bottom-left) ────────────────────────── */
-function DemoPanel({ onRefresh, onSimResult }) {
-  const [open, setOpen]     = useState(false);
-  const [status, setStatus] = useState('');
-
-  const ZONES = [
-    { key: 'restroom_north',     label: '🚻 Restroom North (WC-N)' },
-    { key: 'restroom_south',     label: '🚻 Restroom South (WC-S)' },
-    { key: 'concession_main',    label: '🍕 Main Concession (FC-1)' },
-    { key: 'concession_express', label: '🍕 Express Kiosk (EK-E)'  },
-    { key: 'premium_pavilion',   label: '🏆 Pavilion Lounge (VIP)' },
-  ];
-  const EVENTS = [
-    { name: '🏏 Wicket! Crowd surge expected', short: '🏏 Wicket!'       },
-    { name: '💥 SIX! Crowd going wild',         short: '💥 SIX!'          },
-    { name: '🔥 FOUR! Boundary!',               short: '🔥 FOUR!'         },
-    { name: '💧 Drinks break announced',        short: '💧 Drinks Break'  },
-    { name: '🎉 Innings break announced',       short: '🎉 Innings Break' },
-  ];
-
-  const doSim = async (action, payload) => {
-    try {
-      const res = await api('/simulate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, ...payload }),
-      });
-      setStatus('✅');
-      onRefresh();
-      if (onSimResult) onSimResult(res);
-    } catch { setStatus('❌'); }
-    setTimeout(() => setStatus(''), 2500);
-  };
-
-  const DBtn = ({ onClick, children, red }) => (
-    <button onClick={onClick} style={{
-      width: '100%', textAlign: 'left', padding: '7px 12px',
-      borderRadius: 8, fontSize: 12.5, color: 'var(--muted2)',
-      background: 'transparent', border: 'none', cursor: 'pointer', transition: 'all .12s',
-    }}
-    onMouseEnter={e => { e.currentTarget.style.background = red ? 'var(--red-d)' : 'var(--accent-d)'; e.currentTarget.style.color = red ? 'var(--red)' : 'var(--accent)'; }}
-    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--muted2)'; }}
-    >{children}</button>
-  );
-
-  return (
-    <>
-      {open && (
-        <div className="fade-in" style={{
-          position: 'fixed', bottom: 88, left: 24, width: 250,
-          background: 'var(--sidebar)', border: '1px solid var(--border)',
-          borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.55)',
-          zIndex: 500, overflow: 'hidden',
-        }}>
-          <div style={{ padding: '11px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Demo Controls</span>
-            {status && <span style={{ fontSize: 14 }}>{status}</span>}
-          </div>
-          <div style={{ padding: '6px 8px', maxHeight: 400, overflowY: 'auto' }}>
-            <div className="sec-label" style={{ marginTop: 4 }}>SIMULATE SURGE</div>
-            {ZONES.map(z => <DBtn key={z.key} red onClick={() => doSim('surge', { zone_name: z.key })}>{z.label}</DBtn>)}
-            <div className="sec-label" style={{ marginTop: 8 }}>MATCH EVENTS</div>
-            {EVENTS.map(ev => <DBtn key={ev.name} onClick={() => doSim('event', { event_name: ev.name })}>{ev.short}</DBtn>)}
-            <div style={{ padding: '8px 4px 4px' }}>
-              <button onClick={() => doSim('reset', {})} style={{
-                width: '100%', padding: '7px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
-                color: 'var(--muted2)', cursor: 'pointer', transition: 'all .15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted2)'; }}
-              >🔄 Reset All Data</button>
-            </div>
-          </div>
-        </div>
-      )}
-      <button className="fab" onClick={() => setOpen(!open)} title="Demo Controls" style={{
-        bottom: 24, left: 24, width: 46, height: 46, fontSize: 18,
-        background: open ? 'var(--card2)' : 'rgba(255,255,255,0.07)',
-        border: `1px solid ${open ? 'var(--accent)' : 'var(--border)'}`,
-        color: open ? 'var(--accent)' : 'var(--muted2)',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-      }}>{open ? '✕' : '⚙️'}</button>
-    </>
-  );
-}
-
-/* ── FloatingChat (💬 FAB, bottom-right) ──────────────────────────────── */
-function FloatingChat() {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      {open && (
-        <div className="fade-in" style={{
-          position: 'fixed', bottom: 92, right: 24,
-          width: 390, height: 560,
-          background: 'var(--sidebar)', border: '1px solid var(--border)',
-          borderRadius: 18, boxShadow: '0 24px 72px rgba(0,0,0,0.65)',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 500,
-        }}>
-          <ChatPanel onClose={() => setOpen(false)} />
-        </div>
-      )}
-      <button className="fab" onClick={() => setOpen(!open)} style={{
-        bottom: 24, right: 24, width: 58, height: 58, fontSize: 24,
-        background: open ? 'var(--card)' : 'var(--accent)',
-        border: open ? '1px solid var(--border)' : 'none',
-        color: '#fff',
-        boxShadow: open ? '0 4px 16px rgba(0,0,0,0.4)' : '0 6px 28px rgba(249,115,22,0.55)',
-      }}>
-        {open ? '✕' : '💬'}
-      </button>
-    </>
-  );
-}
-
-/* ── App ──────────────────────────────────────────────────────────────── */
-function App() {
-  const [zones,      setZones]      = useState(null);
-  const [stats,      setStats]      = useState(null);
-  const [lastTs,     setLastTs]     = useState(null);
-  const [err,        setErr]        = useState(null);
-  const [alerts,     setAlerts]     = useState([]);
-  const [toasts,     setToasts]     = useState([]);
-  const [showAlerts, setShowAlerts] = useState(false);
-  const seenIds = useRef(new Set());
-
-  const refresh = useCallback(async () => {
-    try {
-      const [z, s] = await Promise.all([api('/zones'), api('/stats')]);
-      setZones(z); setStats(s);
-      setLastTs(new Date()); setErr(null);
-    } catch { setErr('Cannot reach server — is app.py running on :8000?'); }
-  }, []);
-
-  const addToast = useCallback((alert) => {
-    const toastId = Date.now() + Math.random();
-    setToasts(t => [...t.slice(-3), { ...alert, toastId }]);
-    setTimeout(() => setToasts(t => t.filter(x => x.toastId !== toastId)), 3000);
-  }, []);
-
-  const fetchAlerts = useCallback(async () => {
-    try {
-      const data = await api('/alerts');
-      const all = data.alerts || [];
-      const fresh = all.filter(a => !seenIds.current.has(a.id));
-      fresh.forEach(a => { seenIds.current.add(a.id); addToast(a); });
-      setAlerts(all);
-    } catch {}
-  }, [addToast]);
-
-  const handleSimResult = useCallback((res) => {
-    const newOnes = res.new_alerts || [];
-    newOnes.forEach(a => { seenIds.current.add(a.id); addToast(a); });
-    if (newOnes.length) {
-      setAlerts(prev => {
-        const ids = new Set(prev.map(x => x.id));
-        return [...newOnes.filter(a => !ids.has(a.id)), ...prev].slice(0, 20);
-      });
-    }
-  }, [addToast]);
-
-  const acknowledgeAlert = async (id) => {
-    try {
-      await api(`/alerts/acknowledge/${id}`, { method: 'POST' });
-      setAlerts(prev => prev.map(a => a.id === id ? { ...a, acknowledged: true } : a));
-    } catch {}
-  };
-
-  useEffect(() => { refresh(); fetchAlerts(); }, []);
-  useEffect(() => { const id = setInterval(refresh, 10000); return () => clearInterval(id); }, [refresh]);
-  useEffect(() => { const id = setInterval(fetchAlerts, 15000); return () => clearInterval(id); }, [fetchAlerts]);
-
-  const occList    = zones ? Object.values(zones).map(z => z.occupancy_percent) : [];
-  const critCount  = occList.filter(p => p >= 75).length;
-  const modCount   = occList.filter(p => p >= 50 && p < 75).length;
-  const clrCount   = occList.filter(p => p < 50).length;
-  const unreadCount = alerts.filter(a => !a.acknowledged).length;
-
-  return (
-    <>
-    <div className="layout">
-
-      {/* Top bar */}
-      <div className="topbar">
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginRight: 8 }}>
-          <div className="icon-box" style={{ width: 34, height: 34, background: 'var(--accent-d)', border: '1px solid var(--accent-b)', fontSize: 17 }}>🏟️</div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: -.3, lineHeight: 1 }}>Venue<span style={{ color: 'var(--accent)' }}>IQ</span></div>
-            <div style={{ fontSize: 9, color: 'var(--muted)', letterSpacing: .7 }}>CROWD INTELLIGENCE</div>
-          </div>
-        </div>
-
-        <div style={{ width: 1, height: 28, background: 'var(--border)', flexShrink: 0 }} />
-
-        {/* CV Demo link */}
-        <a href="/demo" style={{
-          textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5,
-          padding: '5px 10px', borderRadius: 8, fontSize: 11.5, fontWeight: 600,
-          color: 'var(--muted2)', border: '1px solid var(--border)', background: 'var(--card)',
-          transition: 'all .15s',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'var(--accent)'; }}
-        onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted2)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
-        >📷 CV Demo</a>
-
-        <div style={{ flex: 1 }} />
-
-        {lastTs && (
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-            Last update: {lastTs.toLocaleTimeString()}
-          </span>
-        )}
-
-        {/* zone status chips */}
-        {zones && (
-          <div style={{ display: 'flex', gap: 6 }}>
-            {critCount > 0 && <span className="chip" style={{ background: 'var(--red-d)',    color: 'var(--red)'    }}>{critCount} Critical</span>}
-            {modCount  > 0 && <span className="chip" style={{ background: 'var(--yellow-d)', color: 'var(--yellow)' }}>{modCount} Moderate</span>}
-            {clrCount  > 0 && <span className="chip" style={{ background: 'var(--green-d)',  color: 'var(--green)'  }}>{clrCount} Clear</span>}
-          </div>
-        )}
-
-        {/* LIVE badge */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: 'var(--red-d)', border: '1px solid rgba(239,68,68,0.3)',
-          borderRadius: 99, padding: '5px 13px',
-        }}>
-          <span className="live-dot" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--red)', display: 'inline-block' }} />
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', letterSpacing: 1 }}>LIVE</span>
-        </div>
-
-        {/* Alert bell */}
-        <button onClick={() => setShowAlerts(true)} style={{
-          position: 'relative', padding: '6px 11px', borderRadius: 8, fontSize: 14,
-          background: unreadCount > 0 ? 'var(--red-d)' : 'var(--card)',
-          border: `1px solid ${unreadCount > 0 ? 'rgba(239,68,68,0.4)' : 'var(--border)'}`,
-          color: unreadCount > 0 ? 'var(--red)' : 'var(--muted2)',
-          transition: 'all .2s', cursor: 'pointer',
-        }}>
-          🔔
-          {unreadCount > 0 && (
-            <span style={{ position: 'absolute', top: -5, right: -5, background: 'var(--red)', color: '#fff', fontSize: 9, fontWeight: 800, borderRadius: 99, padding: '1px 5px', minWidth: 16, textAlign: 'center' }}>
-              {unreadCount}
-            </span>
-          )}
-        </button>
-
-        <button onClick={refresh}
-          style={{
-            padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700,
-            background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--muted2)',
-            transition: 'all .15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--text)'; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted2)'; }}
-        >↻</button>
-      </div>
-
-      {/* Main */}
-      <div className="main">
-        {err && (
-          <div style={{
-            background: 'var(--red-d)', border: '1px solid rgba(239,68,68,0.25)',
-            borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--red)',
-          }}>⚠️ {err}</div>
-        )}
-
-        {/* Stat cards */}
-        {stats ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 22 }}>
-            <StatCard icon="👥" label="AVG OCCUPANCY"
-              value={`${stats.avg_occupancy_percent}%`}
-              sub="across all zones"
-              color={stats.avg_occupancy_percent < 60 ? 'var(--green)' : stats.avg_occupancy_percent < 80 ? 'var(--yellow)' : 'var(--red)'}
-              dim={stats.avg_occupancy_percent < 60 ? 'var(--green-d)' : stats.avg_occupancy_percent < 80 ? 'var(--yellow-d)' : 'var(--red-d)'}
-            />
-            <StatCard icon="❤️" label="CROWD VIBE"
-              value={stats.avg_sentiment_score.toFixed(2)}
-              sub={sentMeta(stats.avg_sentiment_score).label + ' mood'}
-              color={sentMeta(stats.avg_sentiment_score).color}
-              dim="var(--purple-d)"
-            />
-            <StatCard icon="🚨" label="BUSY ZONES"
-              value={critCount}
-              sub={`${clrCount} zone${clrCount !== 1 ? 's' : ''} clear right now`}
-              color={critCount >= 2 ? 'var(--red)' : critCount === 1 ? 'var(--yellow)' : 'var(--green)'}
-              dim={critCount >= 2 ? 'var(--red-d)' : 'var(--yellow-d)'}
-            />
-            <StatCard icon="⏰" label="INNINGS BREAK"
-              value={`${(stats.match_context.innings_break_minute || 90) - stats.match_context.current_minute}m`}
-              sub={`${stats.match_context.next_break_type} · Over ${stats.match_context.overs}`}
-              color="var(--yellow)"
-              dim="var(--yellow-d)"
-            />
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 22 }}>
-            {[1,2,3,4].map(i => <div key={i} className="shimmer-box" style={{ height: 82 }} />)}
-          </div>
-        )}
-
-        {/* Live match score banner */}
-        {stats && (() => {
-          const mc = stats.match_context;
-          const sm = sentMeta(mc.overall_crowd_sentiment);
-          const minLeft = (mc.innings_break_minute || 90) - mc.current_minute;
-          return (
-            <div className="card" style={{
-              padding: '10px 16px', marginBottom: 16,
-              background: 'linear-gradient(135deg,rgba(249,115,22,0.06),rgba(249,115,22,0.01))',
-              borderColor: 'var(--accent-b)',
-              display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
-            }}>
-              {/* Teams + score */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 15, fontWeight: 900, color: '#ff4444' }}>{mc.team_a}</span>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--accent)', lineHeight: 1 }}>{mc.score}</div>
-                  <div style={{ fontSize: 9.5, color: 'var(--muted)', lineHeight: 1, marginTop: 1 }}>Ov {mc.overs}</div>
+            {[
+              { label: 'Happy', val: zone.emotion.happy, color: 'var(--success)' },
+              { label: 'Neutral', val: zone.emotion.neutral, color: 'var(--accent)' },
+              { label: 'Frustrated', val: zone.emotion.frustrated, color: 'var(--danger)' }
+            ].map(em => (
+              <div key={em.label} className="emotion-row">
+                <span style={{ width: 60, color: 'var(--text-secondary)' }}>{em.label}</span>
+                <div className="progress-bg">
+                  <div className="progress-fill" style={{ width: `${em.val}%`, background: em.color }} />
                 </div>
-                <span style={{ fontSize: 15, fontWeight: 900, color: 'var(--blue)' }}>{mc.team_b}</span>
-                {mc.target && <span style={{ fontSize: 10, color: 'var(--yellow)', background: 'var(--yellow-d)', padding: '2px 7px', borderRadius: 99 }}>Target {mc.target}</span>}
+                <span style={{ width: 30, textAlign: 'right', fontWeight: 600 }}>{em.val}%</span>
               </div>
-
-              <div style={{ width: 1, height: 28, background: 'var(--border)', flexShrink: 0 }} />
-
-              {/* Stats */}
-              <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--muted2)' }}>
-                <span><b style={{ color: 'var(--accent)' }}>{mc.run_rate}</b> RR</span>
-                <span><b style={{ color: 'var(--text)' }}>Inn {mc.innings}</b></span>
-                <span style={{ color: minLeft <= 8 ? 'var(--red)' : 'var(--yellow)' }}><b>{minLeft > 0 ? `${minLeft}m` : 'NOW'}</b> {mc.next_break_type}</span>
-              </div>
-
-              <div style={{ width: 1, height: 28, background: 'var(--border)', flexShrink: 0 }} />
-
-              {/* Event + vibe */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700, marginBottom: 1 }}>⚡ {mc.recent_event}</div>
-                <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                  {mc.attendance?.toLocaleString()} fans · {sm.emoji} {mc.overall_crowd_sentiment.toFixed(2)} vibe ·
-                  <b style={{ color: mc.crowd_density === 'HIGH' ? 'var(--red)' : mc.crowd_density === 'MEDIUM' ? 'var(--yellow)' : 'var(--green)' }}> {mc.crowd_density}</b>
-                </div>
-              </div>
-
-              {/* Live/API badge */}
-              <div style={{ flexShrink: 0 }}>
-                {mc._live_api
-                  ? <span className="chip" style={{ background: 'var(--green-d)', color: 'var(--green)', fontSize: 9.5, border: '1px solid rgba(34,197,94,0.3)' }}>🟢 LIVE API</span>
-                  : <span className="chip" style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--muted)', fontSize: 9.5 }}>⚙️ SIMULATED</span>
-                }
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Section heading */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 16 }}>Live Zone Status</div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
-              Real-time occupancy · crowd emotions · wait times
-            </div>
-          </div>
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Auto-refresh 10s</span>
-        </div>
-
-        {/* Zone grid */}
-        {!zones ? (
-          <div className="zone-grid">
-            {[1,2,3,4,5].map(i => <div key={i} className="shimmer-box" style={{ height: 300 }} />)}
-          </div>
-        ) : (
-          <div className="zone-grid">
-            {Object.entries(zones).map(([key, zone]) => (
-              <ZoneCard key={key} zoneKey={key} zone={zone} />
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      );
+    };
 
-    </div>
+    /* ── Main App ──────────────────────────────────────────────────────────── */
 
-    {/* Demo controls FAB */}
-    <DemoPanel onRefresh={refresh} onSimResult={handleSimResult} />
+    function App() {
+      const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+      const [zones, setZones] = useState(null);
+      const [stats, setStats] = useState(null);
+      const [alerts, setAlerts] = useState([]);
+      const [showChat, setShowChat] = useState(false);
+      const [chatMsg, setChatMsg] = useState('');
+      const [chatHistory, setChatHistory] = useState([]);
+      const [loading, setLoading] = useState(false);
+      const [activeTab, setActiveTab] = useState('dashboard');
 
-    {/* Floating chat bot FAB */}
-    <FloatingChat />
+      useEffect(() => {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+      }, [theme]);
 
-    {/* Alert panel overlay */}
-    {showAlerts && (
-      <AlertPanel
-        alerts={alerts}
-        onClose={() => setShowAlerts(false)}
-        onAcknowledge={acknowledgeAlert}
-        onRefresh={async () => {
-          try {
-            const data = await api('/alerts/check', { method: 'POST' });
-            const all = data.all_alerts || [];
-            const fresh = all.filter(a => !seenIds.current.has(a.id));
-            fresh.forEach(a => { seenIds.current.add(a.id); addToast(a); });
-            setAlerts(all);
-          } catch {}
-        }}
-      />
-    )}
+      const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
-    {/* Toast notifications */}
-    <ToastContainer toasts={toasts} onDismiss={id => setToasts(t => t.filter(x => x.toastId !== id))} />
-    </>
-  );
-}
+      const fetchData = useCallback(async () => {
+        try {
+          const [z, s, a] = await Promise.all([
+            fetch('/zones').then(r => r.json()),
+            fetch('/stats').then(r => r.json()),
+            fetch('/alerts').then(r => r.json())
+          ]);
+          setZones(z);
+          setStats(s);
+          setAlerts(a.alerts || []);
+        } catch (e) { }
+      }, []);
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-</script>
+      useEffect(() => {
+        fetchData();
+        const interval = setInterval(fetchData, 10000);
+        return () => clearInterval(interval);
+      }, [fetchData]);
+
+      const handleAsk = async (e, forcedMsg) => {
+        if (e) e.preventDefault();
+        const msg = forcedMsg || chatMsg;
+        if (!msg.trim() || loading) return;
+        
+        setChatMsg('');
+        setChatHistory(prev => [...prev, { role: 'user', text: msg }]);
+        setLoading(true);
+
+        try {
+          const res = await fetch('/ask', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question: msg })
+          }).then(r => r.json());
+          
+          setChatHistory(prev => [...prev, { role: 'agent', text: res.answer, tools: res.tools_used }]);
+        } catch (e) {
+          setChatHistory(prev => [...prev, { role: 'agent', text: "Sorry, I'm having trouble connecting." }]);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const unreadAlerts = (alerts || []).filter(a => !a.acknowledged).length;
+
+      return (
+        <div className="app-container">
+          {/* Sidebar */}
+          <aside className="sidebar">
+            <div className="logo-container" onClick={() => window.location.href = '/landing'} style={{ cursor: 'pointer' }}>
+              <div className="logo-icon">V</div>
+              <div className="logo-text">Venue<span>IQ</span></div>
+            </div>
+
+            <div className="nav-section">
+              <div className="nav-label">Main Menu</div>
+              <div className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+                <Icon name="layout-dashboard" />
+                <span>Dashboard</span>
+              </div>
+              <div className={`nav-item ${activeTab === 'alerts' ? 'active' : ''}`} onClick={() => setActiveTab('alerts')}>
+                <Icon name="bell" />
+                <span>AI Alerts</span>
+                {unreadAlerts > 0 && <span style={{ marginLeft: 'auto', background: 'var(--danger)', color: 'white', fontSize: 10, padding: '2px 6px', borderRadius: 10 }}>{unreadAlerts}</span>}
+              </div>
+            </div>
+
+            <div className="nav-section">
+              <div className="nav-label">System</div>
+              <div className="nav-item">
+                <Icon name="settings" />
+                <span>Settings</span>
+              </div>
+              <ThemeToggle theme={theme} toggle={toggleTheme} />
+            </div>
+
+            <div className="sidebar-footer">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 12, color: 'white' }}>JD</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>Jay Dobariya</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Admin • Ahmedabad</div>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <main className="main-content">
+            <header className="header">
+              <div className="header-left">
+                <h1>{activeTab === 'dashboard' ? 'Dashboard' : 'AI Alerts'}</h1>
+                <p>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+              </div>
+              <div className="header-right">
+                <div className="btn-icon" title="Notifications" onClick={() => setActiveTab('alerts')}>
+                  <Icon name="bell" />
+                  {unreadAlerts > 0 && <div className="badge-dot"></div>}
+                </div>
+                <div className="btn-icon" title="Refresh" onClick={fetchData}>
+                  <Icon name="refresh-cw" />
+                </div>
+                <div 
+                  onClick={() => window.location.href = '/demo'}
+                  className="live-button-highlight"
+                  style={{ padding: '10px 24px', background: 'var(--accent)', color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s', border: 'none' }}
+                  onMouseOver={(e) => e.target.style.background = 'var(--accent-hover)'}
+                  onMouseOut={(e) => e.target.style.background = 'var(--accent)'}
+                >
+                  Live Mode
+                </div>
+              </div>
+            </header>
+
+            <div className="content-scroll">
+              {activeTab === 'dashboard' ? (
+                <>
+                  {stats ? (
+                    <>
+                      <div className="stats-grid">
+                        <StatCard icon="👥" label="TOTAL CROWD" value={(stats.match_context?.attendance || 0).toLocaleString()} sub={`${stats.match_context?.attendance_pct || 0}% Capacity`} bg="var(--accent-soft)" color="var(--accent)" />
+                        <StatCard icon="📊" label="AVG OCCUPANCY" value={`${stats.avg_occupancy_percent || 0}%`} sub="Across 5 Zones" bg="rgba(59, 130, 246, 0.1)" color="#3b82f6" />
+                        <StatCard icon="😊" label="CROWD VIBE" value={(stats.avg_sentiment_score || 0).toFixed(2)} sub="Happier than usual" bg="rgba(16, 185, 129, 0.1)" color="#10b981" />
+                        <StatCard icon="🚨" label="ACTIVE ALERTS" value={unreadAlerts} sub="Requires attention" bg="rgba(239, 68, 68, 0.1)" color="#ef4444" />
+                        <StatCard icon="🏏" label="MATCH MINUTE" value={`${stats.match_context?.current_minute || 0}'`} sub="First Innings" bg="rgba(245, 158, 11, 0.1)" color="#f59e0b" />
+                      </div>
+
+                      <div className="match-banner fade-in">
+                        <div className="match-grid">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                            <div style={{ textAlign: 'center' }}>
+                              <div style={{ fontSize: 24, fontWeight: 900, color: '#ef4444' }}>{stats.match_context?.team_a}</div>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>HOME</div>
+                            </div>
+                            <div style={{ textAlign: 'center', minWidth: 80 }}>
+                              <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--accent)' }}>{stats.match_context?.score}</div>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>Over {stats.match_context?.overs}</div>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                              <div style={{ fontSize: 24, fontWeight: 900, color: '#3b82f6' }}>{stats.match_context?.team_b}</div>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>AWAY</div>
+                            </div>
+                          </div>
+                          
+                          <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: 24 }}>
+                            <div className="nav-label" style={{ margin: 0, fontSize: 10 }}>Live Event</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)', marginTop: 4 }}>⚡ {stats.match_context?.recent_event}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>Density: <b style={{color: stats.match_context?.crowd_density === 'HIGH' ? 'var(--danger)' : 'var(--success)'}}>{stats.match_context?.crowd_density}</b></div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                            <div style={{ background: 'var(--bg-primary)', padding: '12px 20px', borderRadius: 16, border: '1px solid var(--border)', textAlign: 'center' }}>
+                              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>BREAK IN</div>
+                              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--warning)' }}>{(stats.match_context?.innings_break_minute || 90) - (stats.match_context?.current_minute || 0)}m</div>
+                            </div>
+                            <div style={{ background: 'var(--bg-primary)', padding: '12px 20px', borderRadius: 16, border: '1px solid var(--border)', textAlign: 'center' }}>
+                              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>RUN RATE</div>
+                              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent)' }}>{stats.match_context?.run_rate}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="stats-grid">
+                      {[1,2,3,4,5].map(i => <div key={i} className="stat-card shimmer" style={{ height: 120 }}></div>)}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <div className="nav-label" style={{ margin: 0 }}>Zone Real-time Monitor</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                      <div className="pulse" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }}></div>
+                      Auto-updating from sensor array
+                    </div>
+                  </div>
+
+                  {zones ? (
+                    <div className="zone-grid">
+                      {Object.entries(zones).map(([key, zone]) => (
+                        <ZoneCard key={key} zoneKey={key} zone={zone} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="zone-grid">
+                      {[1,2,3,4,5,6].map(i => <div key={i} className="zone-card shimmer" style={{ height: 300 }}></div>)}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                   <div className="nav-label">Active System Alerts</div>
+                   {(alerts || []).length === 0 ? (
+                     <div style={{ padding: 40, textAlign: 'center', background: 'var(--bg-card)', borderRadius: 20, border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                       No active alerts. System is stable.
+                     </div>
+                   ) : (
+                     alerts.map(a => (
+                       <div key={a.id} className="stat-card fade-in" style={{ 
+                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                         borderLeft: `4px solid ${a.severity === 'CRITICAL' ? 'var(--danger)' : 'var(--warning)'}`,
+                         opacity: a.acknowledged ? 0.6 : 1
+                       }}>
+                         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                           <div style={{ width: 48, height: 48, borderRadius: 12, background: a.severity === 'CRITICAL' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: a.severity === 'CRITICAL' ? 'var(--danger)' : 'var(--warning)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
+                             {a.severity === 'CRITICAL' ? '🚨' : '⚠️'}
+                           </div>
+                           <div>
+                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                               <div style={{ fontWeight: 800, fontSize: 17 }}>{a.zone_name}</div>
+                               <span style={{ fontSize: 10, background: a.severity === 'CRITICAL' ? 'var(--danger)' : 'var(--warning)', color: 'white', padding: '2px 8px', borderRadius: 20, fontWeight: 800 }}>{a.severity}</span>
+                             </div>
+                             <div style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 500, marginTop: 4 }}>{a.staff_alert}</div>
+                             <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}><Icon name="clock" size={10} style={{ marginRight: 4 }} />{new Date(a.timestamp).toLocaleTimeString()}</div>
+                               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}><Icon name="map-pin" size={10} style={{ marginRight: 4 }} />{a.zone_id} • {a.section}</div>
+                               <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>Trigger: {a.trigger}</div>
+                             </div>
+                           </div>
+                         </div>
+                         {!a.acknowledged && (
+                           <div 
+                             style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: 'var(--bg-primary)' }}
+                             onClick={() => fetch(`/alerts/acknowledge/${a.id}`, {method: 'POST'}).then(fetchData)}
+                           >
+                             Acknowledge
+                           </div>
+                         )}
+                       </div>
+                     ))
+                   )}
+                </div>
+              )}
+            </div>
+          </main>
+
+          {/* Floating Chatbot */}
+          <div className="chat-fab" onClick={() => setShowChat(!showChat)}>
+            <Icon name={showChat ? "x" : "message-square"} size={28} />
+          </div>
+
+          {showChat && (
+            <div className="chat-window fade-in">
+              <div style={{ background: 'var(--accent)', padding: '20px', color: 'white', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🤖</div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 16 }}>VenueIQ Agent</div>
+                  <div style={{ fontSize: 11, opacity: 0.8 }}>Gemini-powered Crowd Intelligence</div>
+                </div>
+              </div>
+              
+              <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16, background: 'var(--bg-primary)' }}>
+                {chatHistory.length === 0 && (
+                  <div style={{ textAlign: 'center', marginTop: 20 }}>
+                    <Icon name="sparkles" size={48} style={{ marginBottom: 12, opacity: 0.5 }} />
+                    <div style={{ fontWeight: 600, marginBottom: 20 }}>How can I help you today?</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {[
+                        "Which zone is most crowded?",
+                        "Where is the shortest wait time?",
+                        "Are there any active alerts?",
+                        "What is the current crowd vibe?"
+                      ].map(s => (
+                        <div key={s} className="chat-suggestion" onClick={() => handleAsk(null, s)}>
+                          {s}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {chatHistory.map((m, i) => (
+                  <div key={i} style={{ 
+                    alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                    maxWidth: '85%',
+                    padding: '12px 16px',
+                    borderRadius: m.role === 'user' ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
+                    background: m.role === 'user' ? 'var(--accent)' : 'var(--bg-card)',
+                    color: m.role === 'user' ? 'white' : 'var(--text-primary)',
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+                    fontSize: 14,
+                    lineHeight: 1.5
+                  }}>
+                    {m.text}
+                    {m.tools && m.tools.length > 0 && (
+                      <div style={{ display: 'flex', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
+                        {m.tools.map(t => <span key={t} style={{ fontSize: 10, background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: 4 }}>⚡ {t}</span>)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {loading && <div style={{ fontSize: 12, color: 'var(--text-muted)' }} className="pulse">Agent is thinking...</div>}
+              </div>
+
+              <form onSubmit={(e) => handleAsk(e)} style={{ padding: '20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 12 }}>
+                <input 
+                  value={chatMsg}
+                  onChange={e => setChatMsg(e.target.value)}
+                  placeholder="Type a message..."
+                  style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 12, padding: '12px', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                />
+                <button type="submit" style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--accent)', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="send" size={18} />
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    try {
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    } catch (err) {
+      console.error("Render error:", err);
+    }
+  </script>
 </body>
 </html>
