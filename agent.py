@@ -4,23 +4,27 @@ from google import genai
 from google.genai import types
 import store
 
-SYSTEM_PROMPT = """You are VenueIQ — a Stadium Crowd Intelligence Agent at an IPL cricket match venue in Ahmedabad.
+SYSTEM_PROMPT = """You are VenueIQ — the AI crowd intelligence agent for Narendra Modi Stadium, Ahmedabad during IPL 2026.
 
-Your mission: help fans navigate the venue by analysing real-time occupancy, wait times, and crowd emotions.
+Venue zones:
+- restroom_north (WC-N): Restroom Block A — North Stand, cap 60
+- restroom_south (WC-S): Restroom Block B — South Stand, cap 60
+- concession_main (FC-1): Main Concession Hall — Level 1 Concourse, cap 180
+- concession_express (EK-E): Express Kiosk — East Wing, cap 80
+- premium_pavilion (VIP-1): Premium Pavilion Lounge — Pavilion End, cap 90
 
-When making recommendations:
-1. Fetch the data you need (zone status, match context, sentiment)
-2. Factor in: occupancy %, wait time, crowd emotions, upcoming match events
-3. Warn fans BEFORE crowd surges (wickets, breaks)
-4. Be concise, witty, and actionable — like a smart friend who knows the stadium
+Your job: give fans fast, actionable recommendations based on live occupancy, wait times, and crowd emotion data.
 
-Response style:
-- Lead with the recommendation and the most important number
-- Back it up with emotion insight (happy vs frustrated crowd)
-- Always mention timing context (match minute, upcoming break)
-- Keep it under 4 sentences. Punchy, not wordy.
+Rules:
+1. Always call tools first — never guess zone data from memory
+2. For specific zone questions: use get_zone_status; for comparisons or overviews: use get_all_zones
+3. Factor in: occupancy %, wait_time_min, avg_sentiment_score, and upcoming break timing
+4. Warn proactively: wicket → mass bathroom/food rush expected; innings break → 5 min warning
+5. Response: 2-3 punchy sentences max. Lead with the number, follow with the insight.
 
-Example: "Head to Bathroom South NOW — 45% full, 3 min wait, crowd's happy (0.80 sentiment). Skip Food B at all costs: 88% full, 22 min queue, people are fuming. Drinks break in 5 mins — grab food at Concourse A right after when it clears."
+Tone: Smart stadium friend who knows every shortcut. Witty but precise.
+
+Example output: "Head to Restroom South (WC-S) — only 38% full, 2-min wait, crowd's happy. North block is 68% packed with a 7-min queue. Innings break in 38 min, so go now while it's calm."
 """
 
 # Tool declarations as dicts (SDK converts automatically)
@@ -33,7 +37,7 @@ _TOOL_DEFS = [
             "properties": {
                 "zone_name": {
                     "type": "string",
-                    "description": "Zone key. Must be one of: bathroom_north, bathroom_south, food_concourse_a, food_concourse_b, seating_premium",
+                    "description": "Zone key. Must be one of: restroom_north, restroom_south, concession_main, concession_express, premium_pavilion",
                 }
             },
             "required": ["zone_name"],
@@ -79,7 +83,7 @@ def _execute_tool(name: str, args: dict) -> str:
     if name == "get_zone_status":
         zone_name = args.get("zone_name", "")
         zone = store.get_zone(zone_name)
-        return json.dumps(zone if zone else {"error": f"Zone '{zone_name}' not found. Valid: bathroom_north, bathroom_south, food_concourse_a, food_concourse_b, seating_premium"})
+        return json.dumps(zone if zone else {"error": f"Zone '{zone_name}' not found. Valid: restroom_north, restroom_south, concession_main, concession_express, premium_pavilion"})
 
     if name == "get_all_zones":
         return json.dumps(store.get_all_zones())
@@ -120,10 +124,13 @@ def _execute_tool(name: str, args: dict) -> str:
 def _compute_recommendation(requirement: str, priority: str) -> dict:
     zones = store.get_all_zones()
     type_filters = {
-        "bathroom": ["bathroom_north", "bathroom_south"],
-        "food": ["food_concourse_a", "food_concourse_b"],
-        "seating": ["seating_premium"],
-        "any": list(zones.keys()),
+        "bathroom":  ["restroom_north", "restroom_south"],
+        "restroom":  ["restroom_north", "restroom_south"],
+        "food":      ["concession_main", "concession_express"],
+        "concession":["concession_main", "concession_express"],
+        "lounge":    ["premium_pavilion"],
+        "seating":   ["premium_pavilion"],
+        "any":       list(zones.keys()),
     }
     valid_keys = type_filters.get(requirement, list(zones.keys()))
     candidates = {k: v for k, v in zones.items() if k in valid_keys}
@@ -172,6 +179,85 @@ def _compute_recommendation(requirement: str, priority: str) -> dict:
     }
 
 
+def _smart_fallback(user_message: str) -> dict:
+    """Template-based answers using real zone data. Fires when Gemini quota is exhausted."""
+    msg = user_message.lower()
+    zones = store.get_all_zones()
+    mc = store.get_match_context()
+    break_in = mc.get("innings_break_minute", 90) - mc.get("current_minute", 0)
+
+    def fmt(k, z):
+        sm = z["emotion"]["avg_sentiment_score"]
+        mood = "happy crowd 😊" if sm >= 0.7 else "neutral crowd 😐" if sm >= 0.5 else "frustrated crowd 😤"
+        return f"{z['name']} ({z['zone_id']}): {z['occupancy_percent']}% full · {z['wait_time_min']} min wait · {mood}"
+
+    # Bathroom / restroom
+    if any(w in msg for w in ["bathroom", "restroom", "toilet", "wc", "washroom"]):
+        rooms = {k: v for k, v in zones.items() if v["type"] == "restroom"}
+        best = min(rooms.items(), key=lambda x: x[1]["occupancy_percent"] * 0.6 + x[1]["wait_time_min"] * 0.4)
+        worst = max(rooms.items(), key=lambda x: x[1]["occupancy_percent"])
+        k, z = best
+        wk, wz = worst
+        return {
+            "answer": f"Go to {z['name']} ({z['zone_id']}) — {z['occupancy_percent']}% full, {z['wait_time_min']} min wait. "
+                      f"{'Crowd is happy too. ' if z['emotion']['avg_sentiment_score'] >= 0.7 else ''}"
+                      f"Skip {wz['name']} ({wz['zone_id']}): {wz['occupancy_percent']}% packed with {wz['wait_time_min']} min queue. "
+                      f"Break in {break_in} min — move now.",
+            "tools_used": ["recommend_zone"],
+        }
+
+    # Food / concession
+    if any(w in msg for w in ["food", "eat", "hungry", "concession", "kiosk", "snack", "drink"]):
+        food = {k: v for k, v in zones.items() if v["type"] == "food"}
+        best = min(food.items(), key=lambda x: x[1]["wait_time_min"])
+        worst = max(food.items(), key=lambda x: x[1]["wait_time_min"])
+        k, z = best
+        wk, wz = worst
+        return {
+            "answer": f"Head to {z['name']} ({z['zone_id']}) — only {z['wait_time_min']} min wait, {z['occupancy_percent']}% full. "
+                      f"Avoid {wz['name']} ({wz['zone_id']}): {wz['wait_time_min']} min queue, {wz['emotion']['frustrated']}% fans frustrated. "
+                      f"Innings break in {break_in} min — queues will spike after.",
+            "tools_used": ["recommend_zone"],
+        }
+
+    # Sentiment / vibe
+    if any(w in msg for w in ["feel", "mood", "vibe", "sentiment", "happy", "frustrated", "crowd"]):
+        ranked = sorted(zones.items(), key=lambda x: x[1]["emotion"]["avg_sentiment_score"], reverse=True)
+        best_k, best_z = ranked[0]
+        worst_k, worst_z = ranked[-1]
+        return {
+            "answer": f"Overall venue vibe: {mc['overall_crowd_sentiment']:.2f}/1.0 — {mc['crowd_density']} density. "
+                      f"Happiest zone: {best_z['name']} ({best_z['emotion']['avg_sentiment_score']:.2f}, {best_z['emotion']['happy']}% happy). "
+                      f"Most frustrated: {worst_z['name']} ({worst_z['emotion']['frustrated']}% frustrated, {worst_z['wait_time_min']} min wait).",
+            "tools_used": ["get_sentiment_insights"],
+        }
+
+    # Full report
+    if any(w in msg for w in ["report", "status", "overview", "all", "everything"]):
+        lines = [f"**Venue Status — {mc['score']} ({mc['overs']} ov) | Break in {break_in}m**\n"]
+        for k, z in zones.items():
+            lines.append(fmt(k, z))
+        return {"answer": "\n".join(lines), "tools_used": ["get_all_zones", "get_match_context"]}
+
+    # Match context
+    if any(w in msg for w in ["match", "score", "over", "wicket", "run", "innings"]):
+        return {
+            "answer": f"{mc['team_a']} vs {mc['team_b']}: {mc['score']} in {mc['overs']} overs. "
+                      f"Run rate: {mc['run_rate']}. {mc.get('next_break_type','Innings break')} in {break_in} min. "
+                      f"Latest: {mc['recent_event']}.",
+            "tools_used": ["get_match_context"],
+        }
+
+    # Default: best overall zone
+    best = min(zones.items(), key=lambda x: x[1]["occupancy_percent"] * 0.4 + x[1]["wait_time_min"] * 0.6)
+    k, z = best
+    return {
+        "answer": f"Quietest spot right now: {z['name']} ({z['zone_id']}) — {z['occupancy_percent']}% full, {z['wait_time_min']} min wait. "
+                  f"Overall venue is {mc['crowd_density']} density. {mc['recent_event']}.",
+        "tools_used": ["get_all_zones"],
+    }
+
+
 def run_agent(user_message: str) -> dict:
     client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
@@ -192,11 +278,17 @@ def run_agent(user_message: str) -> dict:
     tools_used: list[str] = []
 
     for _ in range(8):
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=contents,
-            config=config,
-        )
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=contents,
+                config=config,
+            )
+        except Exception as e:
+            err = str(e)
+            if any(c in err for c in ["429", "503", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "quota"]):
+                return _smart_fallback(user_message)
+            raise
 
         candidate = response.candidates[0]
         parts = candidate.content.parts

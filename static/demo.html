@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VenueIQ — Live CV Demo</title>
+
+  <!-- TF.js 3.21.0 + COCO-SSD 2.2.3 — proven stable combo -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+
+  <style>
+    :root {
+      --bg:       #0b0f18;
+      --card:     #141d2e;
+      --card2:    #1a2540;
+      --border:   #1e2d47;
+      --text:     #e2e8f0;
+      --muted:    #4b607a;
+      --muted2:   #7a93b0;
+      --accent:   #f97316;
+      --accent-d: rgba(249,115,22,0.13);
+      --accent-b: rgba(249,115,22,0.28);
+      --green:    #22c55e;
+      --green-d:  rgba(34,197,94,0.13);
+      --red:      #ef4444;
+      --red-d:    rgba(239,68,68,0.13);
+      --yellow:   #eab308;
+      --blue:     #3b82f6;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh; -webkit-font-smoothing: antialiased;
+    }
+    button { cursor: pointer; border: none; font-family: inherit; background: none; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* Header */
+    .header {
+      display: flex; align-items: center; gap: 14px;
+      padding: 0 24px; height: 58px;
+      background: #0f1521; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo-box {
+      width: 36px; height: 36px; border-radius: 9px;
+      background: var(--accent-d); border: 1px solid var(--accent-b);
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+    }
+    .logo-text { font-weight: 800; font-size: 17px; letter-spacing: -.3px; color: var(--text); }
+    .logo-text span { color: var(--accent); }
+    .sep { width: 1px; height: 20px; background: var(--border); }
+    .page-title { font-size: 14px; font-weight: 700; color: var(--muted2); }
+    .back-btn {
+      display: flex; align-items: center; gap: 7px;
+      padding: 6px 14px; border-radius: 8px;
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--muted2); font-size: 12px; font-weight: 600;
+      text-decoration: none; transition: all .15s;
+    }
+    .back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .live-badge {
+      margin-left: auto; display: flex; align-items: center; gap: 6px;
+      background: var(--red-d); border: 1px solid rgba(239,68,68,.3);
+      border-radius: 99px; padding: 5px 13px;
+    }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); animation: pulse 1.5s infinite; }
+    .live-text { font-size: 11px; font-weight: 700; color: var(--red); letter-spacing: 1px; }
+
+    /* Layout */
+    .main { display: grid; grid-template-columns: 1fr 300px; gap: 20px; padding: 20px; max-width: 1280px; margin: 0 auto; }
+
+    /* Camera */
+    .camera-wrap {
+      position: relative; width: 100%; aspect-ratio: 16/9;
+      background: #060a10; border-radius: 14px;
+      border: 1px solid var(--border); overflow: hidden;
+    }
+    #video  { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); }
+    #canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
+
+    .corner { position: absolute; width: 20px; height: 20px; border-color: var(--accent); border-style: solid; }
+    .tl { top:10px; left:10px;   border-width: 2px 0 0 2px; border-radius: 3px 0 0 0; }
+    .tr { top:10px; right:10px;  border-width: 2px 2px 0 0; border-radius: 0 3px 0 0; }
+    .bl { bottom:10px; left:10px;  border-width: 0 0 2px 2px; border-radius: 0 0 0 3px; }
+    .br { bottom:10px; right:10px; border-width: 0 2px 2px 0; border-radius: 0 0 3px 0; }
+
+    @keyframes scan { 0%{top:0} 100%{top:100%} }
+    .scan-line {
+      position: absolute; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(34,197,94,.6), transparent);
+      animation: scan 2.6s linear infinite; pointer-events: none; display: none;
+    }
+
+    /* Overlay */
+    .overlay {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+      background: rgba(6,10,16,0.96);
+    }
+    .ov-icon  { font-size: 52px; }
+    .ov-title { font-size: 19px; font-weight: 700; }
+    .ov-sub   { font-size: 13px; color: var(--muted2); text-align: center; max-width: 290px; line-height: 1.65; }
+
+    /* Loading bar */
+    .load-wrap { width: 220px; height: 5px; background: rgba(255,255,255,.07); border-radius: 99px; overflow: hidden; }
+    @keyframes shimmerBar { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
+    .load-bar { height: 100%; width: 50%; border-radius: 99px; background: var(--accent); animation: shimmerBar 1.3s ease-in-out infinite; }
+
+    /* Controls */
+    .controls { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+    .btn-start {
+      padding: 10px 24px; border-radius: 9px; font-weight: 700; font-size: 13px;
+      background: var(--accent); color: #fff; transition: opacity .15s;
+    }
+    .btn-start:disabled { opacity: .35; cursor: not-allowed; }
+    .btn-start:not(:disabled):hover { opacity: .88; }
+    .btn-stop {
+      display: none; padding: 10px 20px; border-radius: 9px; font-weight: 700; font-size: 13px;
+      background: var(--red-d); border: 1px solid rgba(239,68,68,.3); color: var(--red);
+    }
+    .status-pill { padding: 6px 14px; border-radius: 99px; font-size: 11px; font-weight: 700; letter-spacing: .3px; }
+    .fps-label { margin-left: auto; font-size: 11px; color: var(--muted); padding: 6px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; min-width: 64px; text-align: center; }
+
+    /* Cards */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+    .sec-label { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .8px; margin-bottom: 12px; }
+
+    /* Count card */
+    @keyframes pop { 0%{transform:scale(1.2)} 100%{transform:scale(1)} }
+    .count-card {
+      background: linear-gradient(145deg, var(--card), var(--card2));
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 28px 18px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    .count-lbl { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .8px; }
+    .count-num {
+      font-size: 88px; font-weight: 900; line-height: 1;
+      letter-spacing: -5px; color: var(--green); transition: color .3s;
+    }
+    .count-num.yellow { color: var(--yellow); }
+    .count-num.red    { color: var(--red); }
+    .count-num.pop    { animation: pop .25s ease; }
+    .count-unit { font-size: 14px; color: var(--muted2); font-weight: 600; }
+
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .info-cell { background: var(--card2); border-radius: 9px; padding: 10px 12px; }
+    .info-lbl  { font-size: 10px; color: var(--muted); font-weight: 700; letter-spacing: .5px; margin-bottom: 4px; }
+    .info-val  { font-size: 18px; font-weight: 800; }
+
+    /* Det list */
+    .det-list { display: flex; flex-direction: column; gap: 5px; max-height: 190px; overflow-y: auto; }
+    .det-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; background: var(--card2); border-radius: 8px;
+      border: 1px solid var(--border); font-size: 12px;
+    }
+    .det-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Zone sync */
+    select {
+      width: 100%; padding: 9px 12px; border-radius: 8px;
+      background: var(--card2); border: 1px solid var(--border);
+      color: var(--text); font-size: 13px; font-family: inherit; outline: none; margin-bottom: 10px;
+    }
+    select:focus { border-color: var(--accent); }
+    .btn-sync {
+      width: 100%; padding: 11px; border-radius: 9px; font-weight: 700; font-size: 13px;
+      background: var(--green-d); border: 1px solid rgba(34,197,94,.3); color: var(--green); transition: all .15s;
+    }
+    .btn-sync:not(:disabled):hover { background: rgba(34,197,94,.22); }
+    .btn-sync:disabled { opacity: .35; cursor: not-allowed; }
+    .sync-msg { text-align: center; font-size: 12px; font-weight: 600; min-height: 18px; margin-top: 8px; }
+
+    /* Model info */
+    .info-row { display: flex; gap: 20px; flex-wrap: wrap; }
+    .info-item .lbl { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+    .info-item .val { font-size: 13px; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <a href="/" class="logo">
+    <div class="logo-box">🏟️</div>
+    <span class="logo-text">Venue<span>IQ</span></span>
+  </a>
+  <div class="sep"></div>
+  <span class="page-title">Live CV Demo — People Counter</span>
+  <a href="/" class="back-btn">← Dashboard</a>
+  <div class="live-badge">
+    <div class="live-dot"></div>
+    <span class="live-text">LIVE</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Left: Camera -->
+  <div>
+    <div class="camera-wrap">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="canvas"></canvas>
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <div class="scan-line" id="scanLine"></div>
+
+      <div class="overlay" id="overlay">
+        <div class="ov-icon">🧠</div>
+        <div class="ov-title" id="ovTitle">Loading Model…</div>
+        <div class="ov-sub" id="ovSub">COCO-SSD (lite) downloading — takes ~10 seconds.</div>
+        <div class="load-wrap" id="loadWrap"><div class="load-bar"></div></div>
+        <div id="ovStatus" style="font-size:12px;color:var(--muted);"></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn-start" id="startBtn" disabled onclick="startCamera()">📷 Start Camera</button>
+      <button class="btn-stop"  id="stopBtn"  onclick="stopCamera()">⏹ Stop</button>
+      <div class="status-pill" id="statusPill" style="background:var(--accent-d);color:var(--accent);">
+        Loading model…
+      </div>
+      <div class="fps-label" id="fpsLabel">-- FPS</div>
+    </div>
+
+    <div class="card" style="margin-top:14px;padding:14px 16px;">
+      <div class="sec-label" style="margin-bottom:10px;">CV PIPELINE</div>
+      <div class="info-row">
+        <div class="info-item"><div class="lbl">MODEL</div><div class="val">COCO-SSD lite</div></div>
+        <div class="info-item"><div class="lbl">BACKEND</div><div class="val">TensorFlow.js</div></div>
+        <div class="info-item"><div class="lbl">RUNS ON</div><div class="val">Browser (GPU/CPU)</div></div>
+        <div class="info-item"><div class="lbl">CLASSES</div><div class="val">80 object types</div></div>
+        <div class="info-item"><div class="lbl">BASE</div><div class="val" id="tfBackend">detecting…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Stats -->
+  <div style="display:flex;flex-direction:column;gap:12px;">
+
+    <div class="count-card">
+      <div class="count-lbl">PEOPLE DETECTED</div>
+      <div class="count-num" id="countNum">0</div>
+      <div class="count-unit">people in frame</div>
+      <div style="height:1px;background:var(--border);width:100%;margin:14px 0;"></div>
+      <div class="info-grid">
+        <div class="info-cell">
+          <div class="info-lbl">AVG CONFIDENCE</div>
+          <div class="info-val" id="confVal" style="color:var(--green);">--</div>
+        </div>
+        <div class="info-cell">
+          <div class="info-lbl">ALL OBJECTS</div>
+          <div class="info-val" id="allObj" style="color:var(--muted2);">--</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-label">DETECTED OBJECTS</div>
+      <div class="det-list" id="detList">
+        <div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Start camera to detect</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-label">SYNC COUNT → ZONE</div>
+      <select id="zoneSelect">
+        <option value="bathroom_north">🚻 Bathroom North (cap 20)</option>
+        <option value="bathroom_south">🚻 Bathroom South (cap 20)</option>
+        <option value="food_concourse_a">🍕 Food Concourse A (cap 20)</option>
+        <option value="food_concourse_b">🍕 Food Concourse B (cap 20)</option>
+        <option value="seating_premium">🏆 Premium Seating (cap 20)</option>
+      </select>
+      <button class="btn-sync" id="syncBtn" disabled onclick="syncToZone()">
+        ⚡ Sync People Count to Zone
+      </button>
+      <div class="sync-msg" id="syncMsg"></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:10px;border-top:1px solid var(--border);padding-top:10px;line-height:1.6;">
+        Pushes live count to zone occupancy — agent recommendations update instantly.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const video    = document.getElementById('video');
+  const canvas   = document.getElementById('canvas');
+  const ctx      = canvas.getContext('2d');
+  const overlay  = document.getElementById('overlay');
+  const scanLine = document.getElementById('scanLine');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn  = document.getElementById('stopBtn');
+  const statusPill = document.getElementById('statusPill');
+  const fpsLabel   = document.getElementById('fpsLabel');
+  const countNum   = document.getElementById('countNum');
+  const confVal    = document.getElementById('confVal');
+  const allObj     = document.getElementById('allObj');
+  const detList    = document.getElementById('detList');
+  const syncBtn    = document.getElementById('syncBtn');
+  const syncMsg    = document.getElementById('syncMsg');
+  const ovTitle    = document.getElementById('ovTitle');
+  const ovSub      = document.getElementById('ovSub');
+  const ovStatus   = document.getElementById('ovStatus');
+  const loadWrap   = document.getElementById('loadWrap');
+
+  let model     = null;
+  let stream    = null;
+  let rafId     = null;
+  let detecting = false;
+  let lastCount = -1;
+  let frameTs   = [];
+
+  const ZONE_CAP = { bathroom_north:20, bathroom_south:20, food_concourse_a:20, food_concourse_b:20, seating_premium:20 };
+
+  // CLASS → display color
+  const CLASS_COLOR = {
+    person:   '#22c55e',
+    default:  '#f97316',
+  };
+
+  // ── Load model ────────────────────────────────────────────────────────────
+  async function loadModel() {
+    try {
+      ovStatus.textContent = 'Initialising TensorFlow backend…';
+
+      // Try WebGL first, fall back to CPU
+      try {
+        await tf.setBackend('webgl');
+        await tf.ready();
+      } catch (_) {
+        await tf.setBackend('cpu');
+        await tf.ready();
+      }
+
+      document.getElementById('tfBackend').textContent = tf.getBackend().toUpperCase();
+      ovStatus.textContent = 'Downloading COCO-SSD lite model…';
+
+      // lite_mobilenet_v2 = ~3 MB vs mobilenet_v2 ~30 MB → loads 10× faster
+      model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+
+      // Model ready
+      loadWrap.style.display = 'none';
+      ovTitle.textContent    = '✅ Model Ready';
+      ovSub.textContent      = 'Click Start Camera to begin detecting people.';
+      ovStatus.style.color   = 'var(--green)';
+      ovStatus.textContent   = 'COCO-SSD loaded successfully';
+      startBtn.disabled      = false;
+      setStatus('✅ Model Ready', 'var(--green)', 'var(--green-d)');
+    } catch (e) {
+      ovTitle.textContent  = '❌ Load Failed';
+      ovSub.textContent    = e.message;
+      ovStatus.textContent = 'Reload the page to retry.';
+      ovStatus.style.color = 'var(--red)';
+      setStatus('❌ Load Error', 'var(--red)', 'var(--red-d)');
+    }
+  }
+
+  function setStatus(label, color, bg) {
+    statusPill.textContent       = label;
+    statusPill.style.color       = color;
+    statusPill.style.background  = bg;
+  }
+
+  // ── Camera ────────────────────────────────────────────────────────────────
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      video.srcObject = stream;
+      await new Promise(r => video.onloadedmetadata = r);
+      video.play();
+
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      overlay.style.display  = 'none';
+      scanLine.style.display = 'block';
+      startBtn.style.display = 'none';
+      stopBtn.style.display  = 'block';
+      syncBtn.disabled       = false;
+      detecting              = true;
+
+      setStatus('🎯 Detecting', 'var(--accent)', 'var(--accent-d)');
+      detectLoop();
+    } catch (e) {
+      const msg = e.name === 'NotAllowedError'
+        ? 'Camera permission denied — allow camera access and retry.'
+        : 'Camera error: ' + e.message;
+      ovTitle.textContent = '🚫 Camera Error';
+      ovSub.textContent   = msg;
+      ovTitle.style.color = 'var(--red)';
+      loadWrap.style.display = 'none';
+      overlay.style.display  = 'flex';
+      setStatus('❌ Camera Error', 'var(--red)', 'var(--red-d)');
+    }
+  }
+
+  function stopCamera() {
+    detecting = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    stream?.getTracks().forEach(t => t.stop());
+    stream = null;
+    video.srcObject = null;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ovTitle.textContent    = '📷 Camera Stopped';
+    ovTitle.style.color    = 'var(--text)';
+    ovSub.textContent      = 'Click Start Camera to resume.';
+    ovStatus.textContent   = '';
+    loadWrap.style.display = 'none';
+    overlay.style.display  = 'flex';
+    scanLine.style.display = 'none';
+    startBtn.style.display = 'block';
+    stopBtn.style.display  = 'none';
+    syncBtn.disabled       = true;
+    fpsLabel.textContent   = '-- FPS';
+    updateUI([], []);
+    setStatus('✅ Model Ready', 'var(--green)', 'var(--green-d)');
+  }
+
+  // ── Detection loop ────────────────────────────────────────────────────────
+  async function detectLoop() {
+    if (!detecting) return;
+    const t0 = performance.now();
+
+    try {
+      const preds  = await model.detect(video);
+      const people = preds.filter(p => p.class === 'person');
+
+      frameTs.push(t0);
+      frameTs = frameTs.filter(t => t > t0 - 1000);
+      fpsLabel.textContent = frameTs.length + ' FPS';
+
+      drawBoxes(preds);
+      updateUI(people, preds);
+    } catch (_) { /* skip frame */ }
+
+    rafId = requestAnimationFrame(detectLoop);
+  }
+
+  // ── Draw bounding boxes ───────────────────────────────────────────────────
+  function drawBoxes(preds) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    preds.forEach((p, i) => {
+      const [x, y, w, h] = p.bbox;
+      const isPerson = p.class === 'person';
+      const color    = isPerson ? '#22c55e' : '#f97316';
+      const conf     = Math.round(p.score * 100);
+
+      // Main box
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = isPerson ? 2.5 : 1.5;
+      ctx.strokeRect(x, y, w, h);
+
+      // Corner accents for people
+      if (isPerson) {
+        const len = 14;
+        ctx.lineWidth = 3.5;
+        [[x,y,1,1],[x+w,y,-1,1],[x,y+h,1,-1],[x+w,y+h,-1,-1]].forEach(([cx,cy,dx,dy]) => {
+          ctx.beginPath();
+          ctx.moveTo(cx + dx*len, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + dy*len);
+          ctx.stroke();
+        });
+      }
+
+      // Label
+      const label = isPerson ? `👤 Person ${conf}%` : `${p.class} ${conf}%`;
+      ctx.font = 'bold 12px Inter, sans-serif';
+      const tw = ctx.measureText(label).width;
+      const ly = y > 26 ? y - 24 : y + 4;
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect(x, ly, tw + 12, 20, 4);
+      ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.fillText(label, x + 6, ly + 14);
+    });
+  }
+
+  // ── Update stats UI ───────────────────────────────────────────────────────
+  function updateUI(people, all) {
+    const count = people.length;
+
+    if (count !== lastCount) {
+      countNum.textContent = count;
+      countNum.className   = 'count-num ' +
+        (count === 0 ? '' : count < 5 ? '' : count < 10 ? 'yellow' : 'red') + ' pop';
+      setTimeout(() => countNum.classList.remove('pop'), 260);
+      lastCount = count;
+    }
+
+    if (people.length > 0) {
+      const avg = people.reduce((s, p) => s + p.score, 0) / people.length;
+      confVal.textContent = Math.round(avg * 100) + '%';
+      confVal.style.color = avg > .7 ? 'var(--green)' : avg > .5 ? 'var(--yellow)' : 'var(--red)';
+    } else {
+      confVal.textContent = '--';
+    }
+    allObj.textContent = all.length;
+
+    // Group all detections by class
+    const grouped = {};
+    all.forEach(p => {
+      if (!grouped[p.class]) grouped[p.class] = [];
+      grouped[p.class].push(p.score);
+    });
+
+    if (!Object.keys(grouped).length) {
+      detList.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:16px 0;">No objects detected</div>';
+    } else {
+      detList.innerHTML = Object.entries(grouped)
+        .sort(([,a],[,b]) => b.length - a.length)
+        .map(([cls, scores]) => {
+          const avg  = scores.reduce((s,v)=>s+v,0)/scores.length;
+          const isPer = cls === 'person';
+          const clr   = isPer ? 'var(--green)' : 'var(--accent)';
+          return `<div class="det-item">
+            <div class="det-dot" style="background:${clr};${isPer?'box-shadow:0 0 5px var(--green)':''}"></div>
+            <span style="flex:1;font-weight:${isPer?700:500}">${isPer?'👤 Person':cls}</span>
+            <span style="background:rgba(255,255,255,.05);padding:1px 7px;border-radius:99px;font-size:10px;">×${scores.length}</span>
+            <span style="font-weight:800;color:${clr};margin-left:8px;">${Math.round(avg*100)}%</span>
+          </div>`;
+        }).join('');
+    }
+  }
+
+  // ── Sync to zone ──────────────────────────────────────────────────────────
+  async function syncToZone() {
+    const zone     = document.getElementById('zoneSelect').value;
+    const count    = parseInt(countNum.textContent) || 0;
+    const capacity = ZONE_CAP[zone] || 20;
+    const occ      = Math.min(100, Math.round(count / capacity * 100));
+
+    syncBtn.disabled    = true;
+    syncMsg.style.color = 'var(--muted)';
+    syncMsg.textContent = 'Syncing…';
+
+    try {
+      await fetch('/update-zone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zone_name: zone, patch: { count, occupancy_percent: occ } }),
+      });
+      syncMsg.style.color = 'var(--green)';
+      syncMsg.textContent = `✅ ${count} people → ${occ}% occupancy synced`;
+    } catch (e) {
+      syncMsg.style.color = 'var(--red)';
+      syncMsg.textContent = '❌ Failed: ' + e.message;
+    }
+    syncBtn.disabled = false;
+    setTimeout(() => { syncMsg.textContent = ''; }, 4000);
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  loadModel();
+</script>
+</body>
+</html>
