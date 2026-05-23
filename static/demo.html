@@ -424,8 +424,8 @@
   async function loadFaceAPI() {
     if (faceApiLoaded) return;
     try {
-      setStatus('⏳ Downloading Face Models (~490KB)…', 'var(--yellow)', 'var(--accent-d)');
-      const MODEL_URL = 'https://cdn.jsdelivr.net/gh/cstefanache/face-api.js@master/weights/';
+      setStatus('⏳ Downloading Face Models…', 'var(--yellow)', 'var(--accent-d)');
+      const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights/';
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
       await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
       faceApiLoaded = true;
@@ -1040,25 +1040,34 @@
       document.getElementById('tfBackend').textContent = tf.getBackend().toUpperCase();
       ovStatus.textContent = 'Downloading Body detector (COCO-SSD)…';
 
-      // Load COCO-SSD
+      // ── Phase 1: Load COCO-SSD → enable camera button immediately ──
       model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
 
-      // Load Face-API models
-      ovStatus.textContent = 'Downloading Face Emotion models (~490KB)…';
-      const MODEL_URL = 'https://cdn.jsdelivr.net/gh/cstefanache/face-api.js@master/weights/';
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-      await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
-      faceApiLoaded = true;
-
-      // Models fully loaded
       loadWrap.style.display = 'none';
-      ovTitle.textContent    = '✅ Dual-Model Ready';
-      ovSub.textContent      = 'Click Start Camera to begin detecting people and expressions concurrently.';
+      ovTitle.textContent    = '✅ Model Ready';
+      ovSub.textContent      = 'Click Start Camera to begin detecting people.';
       ovStatus.style.color   = 'var(--green)';
-      ovStatus.textContent   = 'COCO-SSD + Face-API loaded successfully';
+      ovStatus.textContent   = 'COCO-SSD ready! Face expression model loading in background…';
       startBtn.disabled      = false;
       uploadBtn.disabled     = false;
       setStatus('✅ AI Engine Ready', 'var(--green)', 'var(--green-d)');
+
+      // ── Phase 2: Load face-api in background (non-blocking) ──
+      (async () => {
+        try {
+          const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights/';
+          await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+          await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+          faceApiLoaded = true;
+          console.log('✅ Face-API expression models loaded');
+          if (!detecting) {
+            ovStatus.textContent = 'COCO-SSD + Face-API loaded successfully';
+            ovTitle.textContent  = '✅ Dual-Model Ready';
+          }
+        } catch (e) {
+          console.warn('Face-API models unavailable (app works without expressions):', e);
+        }
+      })();
     } catch (e) {
       ovTitle.textContent  = '❌ Load Failed';
       ovSub.textContent    = e.message;
@@ -1171,14 +1180,20 @@
         try {
           const preds = await model.detect(img);
           const people = preds.filter(p => p.class === 'person');
-          
-          const detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })).withFaceExpressions();
-          
+
+          // Face detection is optional — only run if models are loaded
+          let detections = [];
+          if (faceApiLoaded) {
+            try {
+              detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })).withFaceExpressions();
+            } catch(fe) { console.warn('Face detection skipped:', fe); }
+          }
+
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0);
           drawCombinedBoxes(preds, detections);
           updateCombinedUI(people, preds, detections);
-          
+
           syncBtn.disabled = false;
           setStatus('✅ Scan Complete', 'var(--green)', 'var(--green-d)');
         } catch (err) {
@@ -1201,9 +1216,14 @@
       const preds  = await model.detect(video);
       const people = preds.filter(p => p.class === 'person');
 
-      // 2. Detect faces
-      const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })).withFaceExpressions();
-      
+      // 2. Detect faces — only if face-api models are ready
+      let detections = [];
+      if (faceApiLoaded) {
+        try {
+          detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })).withFaceExpressions();
+        } catch(fe) { /* silently skip face detection on error */ }
+      }
+
       frameTs.push(t0);
       frameTs = frameTs.filter(t => t > t0 - 1000);
       fpsLabel.textContent = frameTs.length + ' FPS';
