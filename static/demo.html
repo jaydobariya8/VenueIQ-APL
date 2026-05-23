@@ -372,9 +372,19 @@
   // ── Camera ────────────────────────────────────────────────────────────────
   async function startCamera() {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
-      });
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Webcam APIs are blocked in insecure contexts. Please open this page via http://localhost:8000 or an HTTPS secure origin.");
+      }
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+      } catch (err) {
+        console.warn("Retrying camera with simple constraints due to error:", err);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
       video.srcObject = stream;
       await new Promise(r => video.onloadedmetadata = r);
       video.play();
