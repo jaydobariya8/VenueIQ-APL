@@ -272,11 +272,11 @@
     <div class="card">
       <div class="sec-label">SYNC COUNT → ZONE</div>
       <select id="zoneSelect">
-        <option value="bathroom_north">🚻 Bathroom North (cap 20)</option>
-        <option value="bathroom_south">🚻 Bathroom South (cap 20)</option>
-        <option value="food_concourse_a">🍕 Food Concourse A (cap 20)</option>
-        <option value="food_concourse_b">🍕 Food Concourse B (cap 20)</option>
-        <option value="seating_premium">🏆 Premium Seating (cap 20)</option>
+        <option value="restroom_north">🚻 Restroom North (cap 60)</option>
+        <option value="restroom_south">🚻 Restroom South (cap 60)</option>
+        <option value="concession_main">🍕 Main Concession Hall (cap 180)</option>
+        <option value="concession_express">🍕 Express Kiosk East (cap 80)</option>
+        <option value="premium_pavilion">🏆 Premium VIP Pavilion (cap 90)</option>
       </select>
       <button class="btn-sync" id="syncBtn" disabled onclick="syncToZone()">
         ⚡ Sync People Count to Zone
@@ -318,7 +318,7 @@
   let lastCount = -1;
   let frameTs   = [];
 
-  const ZONE_CAP = { bathroom_north:20, bathroom_south:20, food_concourse_a:20, food_concourse_b:20, seating_premium:20 };
+  const ZONE_CAP = { restroom_north:60, restroom_south:60, concession_main:180, concession_express:80, premium_pavilion:90 };
 
   // CLASS → display color
   const CLASS_COLOR = {

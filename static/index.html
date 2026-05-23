@@ -9,6 +9,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/lucide@0.400.0"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?v=weekly"></script>
   <style>
     :root {
       /* Theme Variables */
@@ -21,9 +22,9 @@
       --text-secondary: #64748b;
       --text-muted: #94a3b8;
       --border: #e2e8f0;
-      --accent: #16a34a; 
-      --accent-soft: rgba(22, 163, 74, 0.08);
-      --accent-hover: #15803d;
+      --accent: #10b981; 
+      --accent-soft: rgba(16, 185, 129, 0.08);
+      --accent-hover: #059669;
       --danger: #ef4444;
       --warning: #f59e0b;
       --success: #10b981;
@@ -45,6 +46,30 @@
       --accent-soft: rgba(16, 185, 129, 0.1);
       --accent-hover: #34d399;
       --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Role overrides */
+    [data-role="staff"] {
+      --accent: #6366f1;
+      --accent-soft: rgba(99, 102, 241, 0.1);
+      --accent-hover: #818cf8;
+    }
+
+    [data-role="fan"] {
+      --accent: #10b981;
+      --accent-soft: rgba(16, 185, 129, 0.1);
+      --accent-hover: #34d399;
+    }
+
+    /* Evacuation mode borders */
+    .emergency-glow {
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.45) !important;
+      border-color: #ef4444 !important;
+      animation: emergencyPulse 2s infinite alternate;
+    }
+    @keyframes emergencyPulse {
+      0% { border-color: rgba(239, 68, 68, 0.4); }
+      100% { border-color: rgba(239, 68, 68, 0.95); }
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
@@ -333,6 +358,329 @@
       );
     };
 
+    /* ── Google Maps Stadium Digital Twin ── */
+
+    const StadiumGoogleMap = ({ zones, activeZone, onZoneClick, stadiumState }) => {
+      const mapRef = React.useRef(null);
+      const googleMapInstance = React.useRef(null);
+      const circlesRef = React.useRef({});
+
+      const zoneCoords = {
+        restroom_north: { lat: 23.0931, lng: 72.5970 },
+        restroom_south: { lat: 23.0909, lng: 72.5970 },
+        concession_main: { lat: 23.0920, lng: 72.5956 },
+        concession_express: { lat: 23.0920, lng: 72.5984 },
+        premium_pavilion: { lat: 23.0927, lng: 72.5960 }
+      };
+
+      const getStatusColor = (pct) => {
+        if (pct < 60) return '#10b981'; // Green
+        if (pct < 85) return '#eab308'; // Yellow
+        return '#ef4444'; // Red
+      };
+
+      React.useEffect(() => {
+        if (window.google && window.google.maps && mapRef.current && !googleMapInstance.current) {
+          const map = new google.maps.Map(mapRef.current, {
+            center: { lat: 23.0920, lng: 72.5970 },
+            zoom: 17,
+            mapTypeId: 'satellite',
+            tilt: 45,
+            disableDefaultUI: true,
+            zoomControl: true,
+          });
+          googleMapInstance.current = map;
+        }
+      }, []);
+
+      React.useEffect(() => {
+        if (!googleMapInstance.current || !window.google || !zones) return;
+
+        const map = googleMapInstance.current;
+
+        Object.entries(zoneCoords).forEach(([key, coords]) => {
+          const zoneData = zones[key];
+          if (!zoneData) return;
+
+          const pct = zoneData.occupancy_percent || 0;
+          const color = getStatusColor(pct);
+          const count = zoneData.count || 0;
+          
+          const baseRadius = 15;
+          const radius = baseRadius + (count * 0.15);
+
+          if (circlesRef.current[key]) {
+            circlesRef.current[key].setRadius(radius);
+            circlesRef.current[key].setOptions({
+              fillColor: color,
+              strokeColor: color,
+            });
+          } else {
+            const circle = new google.maps.Circle({
+              strokeColor: color,
+              strokeOpacity: 0.8,
+              strokeWeight: 2,
+              fillColor: color,
+              fillOpacity: 0.35,
+              map: map,
+              center: coords,
+              radius: radius,
+              clickable: true
+            });
+
+            circle.addListener('click', () => {
+              onZoneClick(key);
+            });
+
+            const infoWindow = new google.maps.InfoWindow({
+              content: `<div style="color:#000;font-family:sans-serif;padding:4px;min-width:120px;">
+                <b style="font-size:12px;">${zoneData.name}</b><br/>
+                <span style="font-size:11px;">Occupancy: <b>${pct}%</b><br/>Wait Time: <b>${zoneData.wait_time_min}m</b></span>
+              </div>`
+            });
+
+            circle.addListener('mouseover', () => {
+              infoWindow.setPosition(coords);
+              infoWindow.open(map);
+            });
+
+            circle.addListener('mouseout', () => {
+              infoWindow.close();
+            });
+
+            circlesRef.current[key] = circle;
+          }
+        });
+      }, [zones, onZoneClick]);
+
+      const isEmergency = stadiumState?.emergency_mode;
+
+      return (
+        <div className={`stat-card fade-in ${isEmergency ? 'emergency-glow' : ''}`} style={{ 
+          background: 'var(--bg-card)', 
+          border: `1px solid ${isEmergency ? 'var(--danger)' : 'var(--border)'}`, 
+          borderRadius: 24, 
+          padding: 20, 
+          marginBottom: 24,
+          position: 'relative'
+        }}>
+          {isEmergency && (
+            <div className="emergency-header" style={{
+              background: 'var(--danger)',
+              color: 'white',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              padding: '6px 20px',
+              fontSize: 10,
+              fontWeight: 800,
+              textAlign: 'center',
+              textTransform: 'uppercase',
+              letterSpacing: 1.5,
+              zIndex: 10,
+              animation: 'pulse 1.5s infinite'
+            }}>
+              ⚠️ EMERGENCY: dynamic stadium flows active
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: isEmergency ? 16 : 0 }}>
+            <div>
+              <div className="nav-label" style={{ margin: 0, fontSize: 11 }}>Narendra Modi Stadium — Digital Twin Map</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>Interactive Google Satellite Live Telemetry. Click overlays to query details.</div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, fontSize: 11, fontWeight: 700 }}>
+              <span style={{ color: '#10b981' }}>● &lt;60%</span>
+              <span style={{ color: '#eab308' }}>● 60-85%</span>
+              <span style={{ color: '#ef4444' }}>● &gt;85%</span>
+            </div>
+          </div>
+
+          <div ref={mapRef} style={{ width: '100%', height: '320px', borderRadius: '16px', border: '1px solid var(--border)' }}></div>
+        </div>
+      );
+    };
+
+    /* ── Interactive Stadium Map ── */
+
+    const StadiumMap = ({ zones, activeZone, onZoneClick, stadiumState }) => {
+      const getStatusColor = (pct) => {
+        if (pct < 50) return '#10b981'; // Green
+        if (pct < 75) return '#f59e0b'; // Amber
+        return '#ef4444'; // Red
+      };
+
+      const isEmergency = stadiumState?.emergency_mode;
+      const emType = stadiumState?.emergency_type;
+
+      const getZoneColor = (key) => {
+        if (!zones || !zones[key]) return 'var(--border)';
+        return getStatusColor(zones[key].occupancy_percent);
+      };
+
+      return (
+        <div className={`stat-card fade-in ${isEmergency ? 'emergency-glow' : ''}`} style={{ 
+          background: 'var(--bg-card)', 
+          border: `1px solid ${isEmergency ? 'var(--danger)' : 'var(--border)'}`, 
+          borderRadius: 24, 
+          padding: 24, 
+          marginBottom: 24,
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          {isEmergency && (
+            <div className="emergency-header" style={{
+              background: 'var(--danger)',
+              color: 'white',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              padding: '6px 20px',
+              fontSize: 10,
+              fontWeight: 800,
+              textAlign: 'center',
+              textTransform: 'uppercase',
+              letterSpacing: 1.5,
+              animation: 'pulse 1.5s infinite'
+            }}>
+              ⚠️ STADIUM {emType === 'weather' ? 'WEATHER' : 'SECURITY'} EMERGENCY ACTIVE
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, marginTop: isEmergency ? 16 : 0 }}>
+            <div>
+              <div className="nav-label" style={{ margin: 0, fontSize: 11 }}>Narendra Modi Stadium Live Hotspots</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>Click a zone to review sensors or query the AI Agent</div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, fontSize: 11, fontWeight: 700 }}>
+              <span style={{ color: '#10b981' }}>● Low (&lt;50%)</span>
+              <span style={{ color: '#f59e0b' }}>● Moderate (50-75%)</span>
+              <span style={{ color: '#ef4444' }}>● High (&gt;75%)</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 32, alignItems: 'center' }}>
+            <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
+              <svg width="100%" height="280" viewBox="0 0 400 280" style={{ maxWidth: 360 }}>
+                <ellipse cx="200" cy="140" rx="170" ry="110" fill="none" stroke="var(--border)" strokeWidth="3" />
+                <ellipse cx="200" cy="140" rx="160" ry="100" fill="none" stroke="var(--border)" strokeWidth="1" strokeDasharray="5,5" />
+                
+                <ellipse cx="200" cy="140" rx="80" ry="50" fill="rgba(16, 185, 129, 0.05)" stroke="var(--border)" strokeWidth="2" />
+                <ellipse cx="200" cy="140" rx="60" ry="38" fill="none" stroke="rgba(16, 185, 129, 0.15)" strokeWidth="1" />
+                <rect x="185" y="125" width="30" height="30" rx="2" fill="rgba(245, 158, 11, 0.05)" stroke="var(--border)" strokeWidth="1" />
+                
+                <g>
+                  <line x1="200" y1="30" x2="200" y2="10" stroke={stadiumState?.gates?.gate_1?.status === 'BLOCKED' ? 'var(--danger)' : 'var(--accent)'} strokeWidth="4" />
+                  <circle cx="200" cy="10" r="4" fill={stadiumState?.gates?.gate_1?.status === 'BLOCKED' ? 'var(--danger)' : 'var(--accent)'} />
+                  <text x="200" y="5" fill="var(--text-muted)" fontSize="8" fontWeight="bold" textAnchor="middle">GATE 1</text>
+                </g>
+                <g>
+                  <line x1="370" y1="140" x2="390" y2="140" stroke={stadiumState?.gates?.gate_2?.status === 'BLOCKED' ? 'var(--danger)' : 'var(--accent)'} strokeWidth="4" />
+                  <circle cx="390" cy="140" r="4" fill={stadiumState?.gates?.gate_2?.status === 'BLOCKED' ? 'var(--danger)' : 'var(--accent)'} />
+                  <text x="385" y="152" fill="var(--text-muted)" fontSize="8" fontWeight="bold" textAnchor="end">GATE 2</text>
+                </g>
+                <g>
+                  <line x1="200" y1="250" x2="200" y2="270" stroke={stadiumState?.gates?.gate_3?.status === 'BLOCKED' ? 'var(--danger)' : 'var(--accent)'} strokeWidth="4" />
+                  <circle cx="200" cy="270" r="4" fill={stadiumState?.gates?.gate_3?.status === 'BLOCKED' ? 'var(--danger)' : 'var(--accent)'} />
+                  <text x="200" y="278" fill="var(--text-muted)" fontSize="8" fontWeight="bold" textAnchor="middle">GATE 3</text>
+                  {stadiumState?.gates?.gate_3?.status === 'BLOCKED' && (
+                    <text x="200" y="243" fill="var(--danger)" fontSize="8" fontWeight="900" textAnchor="middle" className="pulse">⚠️ BLOCKED</text>
+                  )}
+                </g>
+                <g>
+                  <line x1="30" y1="140" x2="10" y2="140" stroke={stadiumState?.gates?.gate_4?.status === 'BLOCKED' ? 'var(--danger)' : 'var(--accent)'} strokeWidth="4" />
+                  <circle cx="10" cy="140" r="4" fill={stadiumState?.gates?.gate_4?.status === 'BLOCKED' ? 'var(--danger)' : 'var(--accent)'} />
+                  <text x="15" y="152" fill="var(--text-muted)" fontSize="8" fontWeight="bold" textAnchor="start">GATE 4</text>
+                </g>
+
+                <g onClick={() => onZoneClick('restroom_north')} style={{ cursor: 'pointer' }}>
+                  <path d="M 160 50 A 150 90 0 0 1 240 50 L 230 75 A 120 70 0 0 0 170 75 Z" fill={getZoneColor('restroom_north')} opacity="0.8" stroke="var(--bg-card)" strokeWidth="2" style={{ transition: 'all 0.3s' }} />
+                  <text x="200" y="65" fill="white" fontSize="9" fontWeight="bold" textAnchor="middle">WC-N</text>
+                </g>
+
+                <g onClick={() => onZoneClick('premium_pavilion')} style={{ cursor: 'pointer' }}>
+                  <path d="M 180 82 A 110 65 0 0 1 220 82 L 210 100 A 90 50 0 0 0 190 100 Z" fill={getZoneColor('premium_pavilion')} opacity="0.8" stroke="var(--bg-card)" strokeWidth="1.5" style={{ transition: 'all 0.3s' }} />
+                  <text x="200" y="93" fill="white" fontSize="7" fontWeight="bold" textAnchor="middle">VIP</text>
+                </g>
+
+                <g onClick={() => onZoneClick('concession_main')} style={{ cursor: 'pointer' }}>
+                  <path d="M 50 120 A 150 90 0 0 0 50 160 L 78 152 A 125 70 0 0 1 78 128 Z" fill={getZoneColor('concession_main')} opacity="0.8" stroke="var(--bg-card)" strokeWidth="2" style={{ transition: 'all 0.3s' }} />
+                  <text x="63" y="143" fill="white" fontSize="9" fontWeight="bold" textAnchor="middle">FC-1</text>
+                </g>
+
+                <g onClick={() => onZoneClick('concession_express')} style={{ cursor: 'pointer' }}>
+                  <path d="M 350 120 A 150 90 0 0 1 350 160 L 322 152 A 125 70 0 0 0 322 128 Z" fill={getZoneColor('concession_express')} opacity="0.8" stroke="var(--bg-card)" strokeWidth="2" style={{ transition: 'all 0.3s' }} />
+                  <text x="337" y="143" fill="white" fontSize="9" fontWeight="bold" textAnchor="middle">EK-E</text>
+                </g>
+
+                <g onClick={() => onZoneClick('restroom_south')} style={{ cursor: 'pointer' }}>
+                  <path d="M 160 230 A 150 90 0 0 0 240 230 L 230 205 A 120 70 0 0 1 170 205 Z" fill={getZoneColor('restroom_south')} opacity="0.8" stroke="var(--bg-card)" strokeWidth="2" style={{ transition: 'all 0.3s' }} />
+                  <text x="200" y="222" fill="white" fontSize="9" fontWeight="bold" textAnchor="middle">WC-S</text>
+                </g>
+
+                {isEmergency && (
+                  <g style={{ pointerEvents: 'none' }}>
+                    <path d="M 200 100 L 200 45" fill="none" stroke="var(--accent)" strokeWidth="3" strokeDasharray="6,4" className="pulse" />
+                    <path d="M 150 140 L 45 140" fill="none" stroke="var(--accent)" strokeWidth="3" strokeDasharray="6,4" className="pulse" />
+                    <path d="M 250 140 L 355 140" fill="none" stroke="var(--accent)" strokeWidth="3" strokeDasharray="6,4" className="pulse" />
+                    <path d="M 200 170 L 200 235" fill="none" stroke="var(--danger)" strokeWidth="2" strokeDasharray="3,3" />
+                  </g>
+                )}
+              </svg>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="nav-label" style={{ marginBottom: 6 }}>Entry/Exit Gates Status</div>
+              {stadiumState?.gates ? Object.entries(stadiumState.gates).map(([key, gate]) => {
+                const isBlocked = gate.status === 'BLOCKED';
+                const queue = gate.queue_count || 0;
+                return (
+                  <div key={key} style={{ 
+                    background: 'var(--bg-primary)', 
+                    border: `1px solid ${isBlocked ? 'var(--danger)' : 'var(--border)'}`,
+                    borderRadius: 12, 
+                    padding: '8px 12px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: isBlocked ? 'var(--danger)' : 'var(--text-primary)' }}>
+                        {gate.name.split(' (')[0]}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                        Capacity: {gate.capacity_rate}/m
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ 
+                        fontSize: 10, 
+                        fontWeight: 800, 
+                        background: isBlocked ? 'rgba(239,68,68,0.1)' : 'var(--accent-soft)',
+                        color: isBlocked ? 'var(--danger)' : 'var(--accent)',
+                        padding: '2px 6px',
+                        borderRadius: 6,
+                        marginRight: 8
+                      }}>
+                        {gate.status}
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 800 }}>
+                        {queue} Q
+                      </span>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Gate sensors loading...</div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
     /* ── Main App ──────────────────────────────────────────────────────────── */
 
     function App() {
@@ -345,11 +693,17 @@
       const [chatHistory, setChatHistory] = useState([]);
       const [loading, setLoading] = useState(false);
       const [activeTab, setActiveTab] = useState('dashboard');
+      const [activeRole, setActiveRole] = useState('staff'); // Default to Ops command
+      const [simStatus, setSimStatus] = useState(null);
 
       useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('theme', theme);
       }, [theme]);
+
+      useEffect(() => {
+        document.documentElement.setAttribute('data-role', activeRole);
+      }, [activeRole]);
 
       const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
@@ -385,15 +739,51 @@
           const res = await fetch('/ask', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question: msg })
+            body: JSON.stringify({ question: msg, role: activeRole })
           }).then(r => r.json());
           
-          setChatHistory(prev => [...prev, { role: 'agent', text: res.answer, tools: res.tools_used }]);
+          setChatHistory(prev => [...prev, { 
+            role: 'agent', 
+            text: res.answer, 
+            tools: res.tools_used, 
+            agent: res.agent_used 
+          }]);
         } catch (e) {
           setChatHistory(prev => [...prev, { role: 'agent', text: "Sorry, I'm having trouble connecting." }]);
         } finally {
           setLoading(false);
         }
+      };
+
+      const triggerSimulate = async (action, zoneName = null, eventName = null) => {
+        setSimStatus("Running simulation...");
+        try {
+          const res = await fetch('/simulate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, zone_name: zoneName, event_name: eventName })
+          }).then(r => r.json());
+          
+          setSimStatus(`Simulation Succeeded: ${res.status}`);
+          await fetchData();
+          setTimeout(() => setSimStatus(null), 4000);
+        } catch (e) {
+          setSimStatus(`Simulation Failed: ${e.message}`);
+          setTimeout(() => setSimStatus(null), 4000);
+        }
+      };
+
+      const handleZoneClick = (zoneKey) => {
+        const zNames = {
+          restroom_north: "North Restroom Stand",
+          restroom_south: "South Restroom Stand",
+          concession_main: "Main Concession Food Hall",
+          concession_express: "Express Concessions Kiosk",
+          premium_pavilion: "Premium VIP Pavilion"
+        };
+        const zoneName = zNames[zoneKey] || zoneKey;
+        setChatMsg(`Give me a detailed status and crowd recommendation for ${zoneName}`);
+        setShowChat(true);
       };
 
       const unreadAlerts = (alerts || []).filter(a => !a.acknowledged).length;
@@ -417,6 +807,10 @@
                 <Icon name="bell" />
                 <span>AI Alerts</span>
                 {unreadAlerts > 0 && <span style={{ marginLeft: 'auto', background: 'var(--danger)', color: 'white', fontSize: 10, padding: '2px 6px', borderRadius: 10 }}>{unreadAlerts}</span>}
+              </div>
+              <div className={`nav-item ${activeTab === 'simulator' ? 'active' : ''}`} onClick={() => setActiveTab('simulator')}>
+                <Icon name="sliders" />
+                <span>Ops Simulator</span>
               </div>
             </div>
 
@@ -444,10 +838,57 @@
           <main className="main-content">
             <header className="header">
               <div className="header-left">
-                <h1>{activeTab === 'dashboard' ? 'Dashboard' : 'AI Alerts'}</h1>
-                <p>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                <h1>{activeTab === 'dashboard' ? 'Dashboard' : activeTab === 'alerts' ? 'AI Alerts' : 'Operations Simulator'}</h1>
+                <p>
+                  {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                  <span style={{ marginLeft: 12, padding: '2px 8px', borderRadius: 4, background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 11, fontWeight: 700 }}>
+                    {activeRole === 'staff' ? '🛡️ STAFF OPS MODE' : '📢 SPECTATOR APP MODE'}
+                  </span>
+                </p>
               </div>
               <div className="header-right">
+                {/* ROLE TOGGLER SWITCHER */}
+                <div style={{ display: 'flex', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 12, padding: 4, marginRight: 8 }}>
+                  <button 
+                    onClick={() => {
+                      setActiveRole('fan');
+                      document.documentElement.setAttribute('data-role', 'fan');
+                    }} 
+                    style={{ 
+                      padding: '8px 16px', 
+                      borderRadius: 8, 
+                      fontSize: 12, 
+                      fontWeight: 700, 
+                      background: activeRole === 'fan' ? 'var(--accent)' : 'transparent', 
+                      color: activeRole === 'fan' ? 'white' : 'var(--text-secondary)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    📢 Fan View
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setActiveRole('staff');
+                      document.documentElement.setAttribute('data-role', 'staff');
+                    }} 
+                    style={{ 
+                      padding: '8px 16px', 
+                      borderRadius: 8, 
+                      fontSize: 12, 
+                      fontWeight: 700, 
+                      background: activeRole === 'staff' ? 'var(--accent)' : 'transparent', 
+                      color: activeRole === 'staff' ? 'white' : 'var(--text-secondary)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    🛡️ Ops Command
+                  </button>
+                </div>
+
                 <div className="btn-icon" title="Notifications" onClick={() => setActiveTab('alerts')}>
                   <Icon name="bell" />
                   {unreadAlerts > 0 && <div className="badge-dot"></div>}
@@ -459,10 +900,8 @@
                   onClick={() => window.location.href = '/demo'}
                   className="live-button-highlight"
                   style={{ padding: '10px 24px', background: 'var(--accent)', color: 'white', borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s', border: 'none' }}
-                  onMouseOver={(e) => e.target.style.background = 'var(--accent-hover)'}
-                  onMouseOut={(e) => e.target.style.background = 'var(--accent)'}
                 >
-                  Live Mode
+                  Live CV
                 </div>
               </div>
             </header>
@@ -522,6 +961,13 @@
                     </div>
                   )}
 
+                  <StadiumGoogleMap 
+                    zones={zones} 
+                    activeZone={null} 
+                    onZoneClick={handleZoneClick} 
+                    stadiumState={stats?.stadium_state} 
+                  />
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                     <div className="nav-label" style={{ margin: 0 }}>Zone Real-time Monitor</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
@@ -542,7 +988,7 @@
                     </div>
                   )}
                 </>
-              ) : (
+              ) : activeTab === 'alerts' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                    <div className="nav-label">Active System Alerts</div>
                    {(alerts || []).length === 0 ? (
@@ -585,6 +1031,130 @@
                      ))
                    )}
                 </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="fade-in">
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 24, padding: 32 }}>
+                    <h2>🏟️ Stadium Operations Simulator</h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 8, marginBottom: 24 }}>
+                      Run real-time scenario modeling to validate the AI agentic routing, predictive safety workflows, and PA notification broadcasts.
+                    </p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+                      
+                      {/* Surge Simulation */}
+                      <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                          <span style={{ fontSize: 20 }}>📈</span>
+                          <h4 style={{ fontWeight: 800 }}>Crowd Surge Simulation</h4>
+                        </div>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                          Simulate a sudden spike in occupancy and wait times for concession stands or restrooms.
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <button 
+                            onClick={() => triggerSimulate('surge', 'concession_main')}
+                            className="btn-sync" 
+                            style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)' }}
+                          >
+                            🍕 Surge Main Concession
+                          </button>
+                          <button 
+                            onClick={() => triggerSimulate('surge', 'restroom_south')}
+                            className="btn-sync" 
+                            style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)' }}
+                          >
+                            🚻 Surge South Restroom
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Emergency Simulator */}
+                      <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                          <span style={{ fontSize: 20 }}>🚨</span>
+                          <h4 style={{ fontWeight: 800 }}>Emergency & Weather Autopilot</h4>
+                        </div>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                          Trigger critical events that activate dynamic AI evacuation routes and system-wide high alerts.
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <button 
+                            onClick={() => triggerSimulate('event', null, 'Sudden Rain Storm ⛈️')}
+                            className="btn-sync" 
+                            style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.2)' }}
+                          >
+                            ⛈️ Trigger Rainy Weather Shift
+                          </button>
+                          <button 
+                            onClick={() => triggerSimulate('event', null, 'Gate 3 Security Alert 🚨')}
+                            className="btn-sync" 
+                            style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: '1px solid rgba(239,68,68,0.2)' }}
+                          >
+                            🚨 Gate 3 Exit Blockage
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Match Play events */}
+                      <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                          <span style={{ fontSize: 20 }}>🏏</span>
+                          <h4 style={{ fontWeight: 800 }}>Match Action Events</h4>
+                        </div>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+                          Inject cricket match context to test predictive crowd movement surges.
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <button 
+                            onClick={() => triggerSimulate('event', null, 'WICKET! Virat Kohli is out caught!')}
+                            className="btn-sync" 
+                            style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)' }}
+                          >
+                            ☝️ Wicket Falls (RCB / GT)
+                          </button>
+                          <button 
+                            onClick={() => triggerSimulate('event', null, 'SIX! Pathan smashes over mid-wicket!')}
+                            className="btn-sync" 
+                            style={{ background: 'rgba(16,185,129,0.1)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.2)' }}
+                          >
+                            🏏 Boundary Hit (4 / 6)
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    <div style={{ marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        * Running simulations updates the global in-memory store and alerts engine instantly.
+                      </div>
+                      <button 
+                        onClick={() => triggerSimulate('reset')}
+                        className="btn-sync" 
+                        style={{ width: 'auto', padding: '10px 24px', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                      >
+                        🔄 Reset Stadium to Normal State
+                      </button>
+                    </div>
+
+                    {simStatus && (
+                      <div className="fade-in" style={{ 
+                        marginTop: 20, 
+                        padding: '12px 20px', 
+                        background: 'var(--accent-soft)', 
+                        border: '1px solid var(--accent)', 
+                        borderRadius: 12, 
+                        color: 'var(--accent)', 
+                        fontSize: 14, 
+                        fontWeight: 700,
+                        textAlign: 'center'
+                      }}>
+                        {simStatus}
+                      </div>
+                    )}
+
+                  </div>
+                </div>
               )}
             </div>
           </main>
@@ -624,25 +1194,46 @@
                   </div>
                 )}
                 {chatHistory.map((m, i) => (
-                  <div key={i} style={{ 
-                    alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                    maxWidth: '85%',
-                    padding: '12px 16px',
-                    borderRadius: m.role === 'user' ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
-                    background: m.role === 'user' ? 'var(--accent)' : 'var(--bg-card)',
-                    color: m.role === 'user' ? 'white' : 'var(--text-primary)',
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-                    fontSize: 14,
-                    lineHeight: 1.5
-                  }}>
-                    {m.text}
-                    {m.tools && m.tools.length > 0 && (
-                      <div style={{ display: 'flex', gap: 4, marginTop: 8, flexWrap: 'wrap' }}>
-                        {m.tools.map(t => <span key={t} style={{ fontSize: 10, background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: 4 }}>⚡ {t}</span>)}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                   <div key={i} style={{ 
+                     alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                     maxWidth: '85%',
+                     padding: '12px 16px',
+                     borderRadius: m.role === 'user' ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
+                     background: m.role === 'user' ? 'var(--accent)' : 'var(--bg-card)',
+                     color: m.role === 'user' ? 'white' : 'var(--text-primary)',
+                     boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+                     fontSize: 14,
+                     lineHeight: 1.5,
+                     display: 'flex',
+                     flexDirection: 'column',
+                     gap: 6
+                   }}>
+                     {m.role === 'agent' && m.agent && (
+                       <div style={{
+                         display: 'inline-flex',
+                         alignItems: 'center',
+                         alignSelf: 'flex-start',
+                         gap: 4,
+                         fontSize: 9,
+                         fontWeight: 900,
+                         textTransform: 'uppercase',
+                         letterSpacing: 0.5,
+                         padding: '2px 8px',
+                         borderRadius: 6,
+                         background: m.agent === 'commander' ? 'rgba(239,68,68,0.15)' : m.agent === 'comms' ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)',
+                         color: m.agent === 'commander' ? 'var(--danger)' : m.agent === 'comms' ? '#3b82f6' : 'var(--accent)',
+                       }}>
+                         {m.agent === 'commander' ? '🚨 Incident Commander' : m.agent === 'comms' ? '📢 Comms Agent' : '🧭 Routing Agent'}
+                       </div>
+                     )}
+                     <div>{m.text}</div>
+                     {m.tools && m.tools.length > 0 && (
+                       <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                         {m.tools.map(t => <span key={t} style={{ fontSize: 10, background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: 4 }}>⚡ {t}</span>)}
+                       </div>
+                     )}
+                   </div>
+                 ))}
                 {loading && <div style={{ fontSize: 12, color: 'var(--text-muted)' }} className="pulse">Agent is thinking...</div>}
               </div>
 

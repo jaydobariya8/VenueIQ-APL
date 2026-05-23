@@ -66,6 +66,7 @@ _hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
 
 class AskRequest(BaseModel):
     question: str
+    role: str = "fan"
 
 
 class UpdateZoneRequest(BaseModel):
@@ -109,7 +110,8 @@ async def demo():
 @app.post("/cv/detect")
 async def cv_detect(file: UploadFile = File(...)):
     """
-    Receives a JPEG frame from the browser, runs OpenCV people + face detection,
+    Receives a JPEG frame from the browser, runs Google Cloud Vision API
+    (falling back to local OpenCV if credentials are not configured),
     returns bounding boxes and count as JSON.
     """
     data = await file.read()
@@ -120,64 +122,116 @@ async def cv_detect(file: UploadFile = File(...)):
         return {"count": 0, "faces": [], "bodies": []}
 
     h, w = img.shape[:2]
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # ── Face detection (works great for demos with people facing camera) ──
-    faces_raw = _face_cascade.detectMultiScale(
-        gray,
-        scaleFactor=1.1,
-        minNeighbors=5,
-        minSize=(30, 30),
-        flags=cv2.CASCADE_SCALE_IMAGE,
-    )
-    faces = []
-    if len(faces_raw):
-        for (x, y, fw, fh) in faces_raw:
-            # Extend box downward to approximate full-body bounding box for UI
-            body_y = y
-            body_h = min(int(fh * 4.5), h - y)
-            faces.append({
-                "face_box":  [int(x), int(y), int(fw), int(fh)],
-                "body_box":  [int(x - fw // 3), body_y, int(fw * 1.6), body_h],
-                "score":     0.9,
-            })
+    # Try Google Cloud Vision API first
+    try:
+        from google.cloud import vision
+        client = vision.ImageAnnotatorClient()
+        image = vision.Image(content=data)
+        
+        # 1. Object Localization to find people
+        objects_response = client.object_localization(image=image)
+        bodies = []
+        for obj in objects_response.localized_object_annotations:
+            if obj.name.lower() == "person":
+                vertices = obj.bounding_poly.normalized_vertices
+                if len(vertices) >= 4:
+                    xs = [v.x * w for v in vertices]
+                    ys = [v.y * h for v in vertices]
+                    x_min, x_max = int(min(xs)), int(max(xs))
+                    y_min, y_max = int(min(ys)), int(max(ys))
+                    bodies.append({
+                        "box": [x_min, y_min, x_max - x_min, y_max - y_min],
+                        "score": float(obj.score)
+                    })
 
-    # ── HOG full-body detection (for people not facing camera) ──
-    scale = min(1.0, 640 / w)
-    small = cv2.resize(img, (int(w * scale), int(h * scale)))
-    hog_boxes, hog_weights = _hog.detectMultiScale(
-        small,
-        winStride=(8, 8),
-        padding=(4, 4),
-        scale=1.05,
-        finalThreshold=2,
-    )
-    bodies = []
-    if len(hog_boxes):
-        for i, (x, y, bw, bh) in enumerate(hog_boxes):
-            bodies.append({
-                "box":   [int(x / scale), int(y / scale), int(bw / scale), int(bh / scale)],
-                "score": float(hog_weights[i]),
-            })
+        # 2. Face Detection
+        face_response = client.face_detection(image=image)
+        faces = []
+        for face in face_response.face_annotations:
+            vertices = face.bounding_poly.vertices
+            if len(vertices) >= 4:
+                xs = [v.x for v in vertices]
+                ys = [v.y for v in vertices]
+                x_min, x_max = int(min(xs)), int(max(xs))
+                y_min, y_max = int(min(ys)), int(max(ys))
+                
+                fw, fh = x_max - x_min, y_max - y_min
+                body_y = y_min
+                body_h = min(int(fh * 4.5), h - y_min)
+                
+                faces.append({
+                    "face_box": [x_min, y_min, fw, fh],
+                    "body_box": [int(x_min - fw // 3), body_y, int(fw * 1.6), body_h],
+                    "score": float(face.detection_confidence)
+                })
 
-    # Best count: prefer face count (more reliable in demo), fallback to HOG
-    count = max(len(faces), len(bodies))
+        count = max(len(faces), len(bodies))
+        return {
+            "count": count,
+            "faces": faces,
+            "bodies": bodies,
+            "frame": {"w": w, "h": h},
+            "source": "google_cloud_vision"
+        }
+        
+    except Exception:
+        # Fallback to local OpenCV if Google Cloud Vision is not configured or errors out
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        faces_raw = _face_cascade.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=5,
+            minSize=(30, 30),
+            flags=cv2.CASCADE_SCALE_IMAGE,
+        )
+        faces = []
+        if len(faces_raw):
+            for (x, y, fw, fh) in faces_raw:
+                body_y = y
+                body_h = min(int(fh * 4.5), h - y)
+                faces.append({
+                    "face_box":  [int(x), int(y), int(fw), int(fh)],
+                    "body_box":  [int(x - fw // 3), body_y, int(fw * 1.6), body_h],
+                    "score":     0.9,
+                })
 
-    return {
-        "count":  count,
-        "faces":  faces,
-        "bodies": bodies,
-        "frame":  {"w": w, "h": h},
-    }
+        scale = min(1.0, 640 / w)
+        small = cv2.resize(img, (int(w * scale), int(h * scale)))
+        hog_boxes, hog_weights = _hog.detectMultiScale(
+            small,
+            winStride=(8, 8),
+            padding=(4, 4),
+            scale=1.05,
+            finalThreshold=2,
+        )
+        bodies = []
+        if len(hog_boxes):
+            for i, (x, y, bw, bh) in enumerate(hog_boxes):
+                bodies.append({
+                    "box":   [int(x / scale), int(y / scale), int(bw / scale), int(bh / scale)],
+                    "score": float(hog_weights[i]),
+                })
+
+        count = max(len(faces), len(bodies))
+        return {
+            "count":  count,
+            "faces":  faces,
+            "bodies": bodies,
+            "frame":  {"w": w, "h": h},
+            "source": "opencv_fallback"
+        }
 
 
 @app.post("/ask")
 async def ask(req: AskRequest):
     question = req.question.strip()
+    role = req.role.strip() if req.role else "fan"
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
     try:
-        result = await asyncio.to_thread(run_agent, question)
+        result = await asyncio.to_thread(run_agent, question, role)
         return result
     except Exception as e:
         return {"answer": f"Agent error: {e}", "tools_used": []}
