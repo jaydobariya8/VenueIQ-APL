@@ -235,13 +235,14 @@
     </div>
 
     <div class="card" style="margin-top:14px;padding:14px 16px;">
-      <div class="sec-label" style="margin-bottom:10px;">CV PIPELINE</div>
-      <div class="info-row">
-        <div class="info-item"><div class="lbl">MODEL</div><div class="val">COCO-SSD lite</div></div>
-        <div class="info-item"><div class="lbl">BACKEND</div><div class="val">TensorFlow.js</div></div>
-        <div class="info-item"><div class="lbl">RUNS ON</div><div class="val">Browser (GPU/CPU)</div></div>
-        <div class="info-item"><div class="lbl">CLASSES</div><div class="val">80 object types</div></div>
-        <div class="info-item"><div class="lbl">BASE</div><div class="val" id="tfBackend">detecting…</div></div>
+      <div class="sec-label" style="margin-bottom:10px;">AI PIPELINE SELECTOR</div>
+      <select id="pipelineSelect" onchange="changePipeline()" style="margin-bottom:10px; width:100%;">
+        <option value="edge">🌐 Edge AI (Browser TF.js)</option>
+        <option value="cloud">🧠 Google Cloud Vision (FastAPI Server)</option>
+      </select>
+      <div class="info-row" style="margin-top:10px;">
+        <div class="info-item"><div class="lbl">MODEL</div><div class="val" id="pipelineModel">COCO-SSD lite</div></div>
+        <div class="info-item"><div class="lbl">BACKEND</div><div class="val" id="tfBackend">TensorFlow.js</div></div>
       </div>
     </div>
   </div>
@@ -323,6 +324,8 @@
   let lastCount = -1;
   let frameTs   = [];
 
+  let activePipeline = 'edge';
+
   const ZONE_CAP = { restroom_north:60, restroom_south:60, concession_main:180, concession_express:80, premium_pavilion:90 };
 
   // CLASS → display color
@@ -366,6 +369,23 @@
       ovStatus.textContent = 'Reload the page to retry.';
       ovStatus.style.color = 'var(--red)';
       setStatus('❌ Load Error', 'var(--red)', 'var(--red-d)');
+    }
+  }
+
+  function changePipeline() {
+    const pipe = document.getElementById('pipelineSelect').value;
+    activePipeline = pipe;
+    const pModel = document.getElementById('pipelineModel');
+    const pBackend = document.getElementById('tfBackend');
+    
+    if (pipe === 'cloud') {
+      pModel.textContent = "Google Cloud Vision";
+      pBackend.textContent = "FastAPI / GCP SDK";
+      setStatus('🧠 Cloud Pipeline Active', 'var(--accent)', 'var(--accent-d)');
+    } else {
+      pModel.textContent = "COCO-SSD lite";
+      pBackend.textContent = tf.getBackend().toUpperCase();
+      setStatus('✅ Edge Pipeline Active', 'var(--green)', 'var(--green-d)');
     }
   }
 
@@ -470,14 +490,28 @@
         setStatus('🎯 Scanning Photo…', 'var(--accent)', 'var(--accent-d)');
 
         try {
-          const preds = await model.detect(img);
-          const people = preds.filter(p => p.class === 'person');
+          if (activePipeline === 'cloud') {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const resp = await fetch('/cv/detect', { method: 'POST', body: formData });
+            const data = await resp.json();
+            
+            drawServerBoxes(data);
+            updateServerUI(data);
+            syncBtn.disabled = false;
+            
+            setStatus(`✅ Server Scan (${data.source})`, 'var(--green)', 'var(--green-d)');
+          } else {
+            const preds = await model.detect(img);
+            const people = preds.filter(p => p.class === 'person');
 
-          drawBoxes(preds);
-          updateUI(people, preds);
-          syncBtn.disabled = false;
-          
-          setStatus('✅ Scan Complete', 'var(--green)', 'var(--green-d)');
+            drawBoxes(preds);
+            updateUI(people, preds);
+            syncBtn.disabled = false;
+            
+            setStatus('✅ Scan Complete', 'var(--green)', 'var(--green-d)');
+          }
         } catch (err) {
           console.error("Static image analysis error:", err);
           setStatus('❌ Detection Failed', 'var(--red)', 'var(--red-d)');
@@ -494,16 +528,45 @@
     const t0 = performance.now();
 
     try {
-      const preds  = await model.detect(video);
-      const people = preds.filter(p => p.class === 'person');
+      if (activePipeline === 'cloud') {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = video.videoWidth || 640;
+        tempCanvas.height = video.videoHeight || 480;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+        
+        const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/jpeg', 0.8));
+        const formData = new FormData();
+        formData.append('file', blob, 'frame.jpg');
+        
+        const resp = await fetch('/cv/detect', { method: 'POST', body: formData });
+        const data = await resp.json();
+        
+        drawServerBoxes(data);
+        updateServerUI(data);
 
-      frameTs.push(t0);
-      frameTs = frameTs.filter(t => t > t0 - 1000);
-      fpsLabel.textContent = frameTs.length + ' FPS';
+        frameTs.push(t0);
+        frameTs = frameTs.filter(t => t > t0 - 1000);
+        fpsLabel.textContent = '☁️ ' + Math.min(10, frameTs.length) + ' FPS';
 
-      drawBoxes(preds);
-      updateUI(people, preds);
-    } catch (_) { /* skip frame */ }
+        setTimeout(() => {
+          if (detecting) rafId = requestAnimationFrame(detectLoop);
+        }, 1000);
+        return;
+      } else {
+        const preds  = await model.detect(video);
+        const people = preds.filter(p => p.class === 'person');
+
+        frameTs.push(t0);
+        frameTs = frameTs.filter(t => t > t0 - 1000);
+        fpsLabel.textContent = frameTs.length + ' FPS';
+
+        drawBoxes(preds);
+        updateUI(people, preds);
+      }
+    } catch (err) {
+      console.warn("Detection skipped/errored:", err);
+    }
 
     rafId = requestAnimationFrame(detectLoop);
   }
@@ -594,6 +657,109 @@
           </div>`;
         }).join('');
     }
+  }
+
+  // ── Server-side Cloud Vision Drawing helpers ────────────────────────────────
+  function drawServerBoxes(data) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const bodies = data.bodies || [];
+    bodies.forEach(b => {
+      const [x, y, w, h] = b.box;
+      const score = b.score;
+      const color = '#22c55e';
+      const conf = Math.round(score * 100);
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 2.5;
+      ctx.strokeRect(x, y, w, h);
+
+      const len = 14;
+      ctx.lineWidth = 3.5;
+      [[x,y,1,1],[x+w,y,-1,1],[x,y+h,1,-1],[x+w,y+h,-1,-1]].forEach(([cx,cy,dx,dy]) => {
+        ctx.beginPath();
+        ctx.moveTo(cx + dx*len, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + dy*len);
+        ctx.stroke();
+      });
+
+      const label = `👤 Person ${conf}%`;
+      ctx.font = 'bold 12px Inter, sans-serif';
+      const tw = ctx.measureText(label).width;
+      const ly = y > 26 ? y - 24 : y + 4;
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect(x, ly, tw + 12, 20, 4);
+      ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.fillText(label, x + 6, ly + 14);
+    });
+
+    const faces = data.faces || [];
+    faces.forEach(f => {
+      const [fx, fy, fw, fh] = f.face_box;
+      const score = f.score;
+      const color = '#3b82f6';
+      const conf = Math.round(score * 100);
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 2.0;
+      ctx.beginPath();
+      ctx.ellipse(fx + fw/2, fy + fh/2, fw/2, fh/2, 0, 0, 2 * Math.PI);
+      ctx.stroke();
+
+      const label = `😊 Face ${conf}%`;
+      ctx.font = 'bold 9px Inter, sans-serif';
+      const tw = ctx.measureText(label).width;
+      const ly = fy > 18 ? fy - 16 : fy + fh + 2;
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect(fx, ly, tw + 8, 14, 3);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, fx + 4, ly + 10);
+    });
+  }
+
+  function updateServerUI(data) {
+    const count = data.count || 0;
+
+    if (count !== lastCount) {
+      countNum.textContent = count;
+      countNum.className   = 'count-num ' +
+        (count === 0 ? '' : count < 5 ? '' : count < 10 ? 'yellow' : 'red') + ' pop';
+      setTimeout(() => countNum.classList.remove('pop'), 260);
+      lastCount = count;
+    }
+
+    const bodies = data.bodies || [];
+    if (bodies.length > 0) {
+      const avg = bodies.reduce((s, b) => s + b.score, 0) / bodies.length;
+      confVal.textContent = Math.round(avg * 100) + '%';
+      confVal.style.color = avg > .7 ? 'var(--green)' : avg > .5 ? 'var(--yellow)' : 'var(--red)';
+    } else {
+      confVal.textContent = '--';
+    }
+    
+    allObj.textContent = bodies.length + (data.faces || []).length;
+
+    const detList = document.getElementById('detList');
+    detList.innerHTML = `
+      <div class="det-item">
+        <div class="det-dot" style="background:var(--green);box-shadow:0 0 5px var(--green)"></div>
+        <span style="flex:1;font-weight:700">👤 Bodies Detected</span>
+        <span style="background:rgba(255,255,255,.05);padding:1px 7px;border-radius:99px;font-size:10px;">×${bodies.length}</span>
+      </div>
+      <div class="det-item">
+        <div class="det-dot" style="background:#3b82f6;box-shadow:0 0 5px #3b82f6"></div>
+        <span style="flex:1;font-weight:700">😊 Faces Tracked</span>
+        <span style="background:rgba(255,255,255,.05);padding:1px 7px;border-radius:99px;font-size:10px;">×${(data.faces || []).length}</span>
+      </div>
+      <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:8px;">
+        Pipeline: ${data.source === 'google_cloud_vision' ? '☁️ Google Cloud Vision SDK' : '⚡ Local OpenCV Fallback'}
+      </div>
+    `;
   }
 
   // ── Sync to zone ──────────────────────────────────────────────────────────
