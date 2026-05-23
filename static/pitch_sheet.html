@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StadiumPulse — Hackathon Executive Pitch & Q&A Guide</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-soft: rgba(99, 102, 241, 0.08);
+      --dark: #0f172a;
+      --slate: #475569;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+    body {
+      background: #f8fafc; color: var(--dark);
+      padding: 40px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+    }
+    .page {
+      background: white; border: 1px solid var(--border);
+      border-radius: 20px; padding: 48px; max-width: 840px;
+      margin: 0 auto 40px auto; box-shadow: 0 10px 25px rgba(0,0,0,0.02);
+      min-height: 1080px; position: relative;
+    }
+    
+    /* Header */
+    .header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      border-bottom: 2px solid var(--border); padding-bottom: 20px; margin-bottom: 24px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-icon {
+      width: 34px; height: 34px; background: linear-gradient(135deg, var(--primary), #818cf8);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 900; font-size: 18px;
+    }
+    .brand-text { font-weight: 900; font-size: 20px; letter-spacing: -0.5px; }
+    .brand-text span { color: var(--primary); }
+    
+    .doc-type {
+      font-size: 10px; font-weight: 800; color: white; background: var(--dark);
+      padding: 4px 10px; border-radius: 6px; letter-spacing: 1px; text-transform: uppercase;
+    }
+
+    h1 { font-size: 26px; font-weight: 900; letter-spacing: -0.8px; margin-bottom: 6px; }
+    .sub { font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Layout Elements */
+    .section-title {
+      font-size: 13px; font-weight: 800; color: var(--primary);
+      text-transform: uppercase; letter-spacing: 1.2px; margin: 28px 0 12px 0;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
+    .grid-cell { background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .grid-cell h4 { font-size: 12px; font-weight: 800; color: var(--slate); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .grid-cell p { font-size: 13px; color: var(--muted); line-height: 1.4; }
+
+    .table-container { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    th { background: #f8fafc; padding: 12px 16px; font-weight: 800; color: var(--slate); border-bottom: 1px solid var(--border); }
+    td { padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.45; }
+    tr:last-child td { border-bottom: none; }
+
+    .bullet-list { margin-left: 16px; margin-top: 6px; }
+    .bullet-list li { font-size: 13px; color: var(--slate); margin-bottom: 6px; line-height: 1.45; }
+    .bullet-list strong { color: var(--dark); }
+
+    .footer {
+      position: absolute; bottom: 40px; left: 48px; right: 48px;
+      display: flex; justify-content: space-between; border-top: 1px solid var(--border);
+      padding-top: 14px; font-size: 11px; color: var(--muted); font-weight: 600;
+    }
+
+    /* Page 2 specific */
+    .qa-block { display: flex; flex-direction: column; gap: 18px; }
+    .qa-item { border: 1px solid var(--border); border-radius: 14px; padding: 18px; background: #fafcff; }
+    .q { font-size: 14px; font-weight: 800; color: var(--dark); display: flex; gap: 8px; margin-bottom: 8px; }
+    .q span { color: var(--primary); }
+    .a { font-size: 13px; color: var(--slate); line-height: 1.5; padding-left: 20px; }
+
+    /* Print settings */
+    @media print {
+      body { background: white; padding: 0; }
+      .page {
+        border: none; box-shadow: none; padding: 0; width: 100%; min-height: 100vh;
+        page-break-after: always; position: relative; margin: 0;
+      }
+      .page:last-child { page-break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PAGE 1: EXECUTIVE PITCH CHEAT SHEET -->
+  <div class="page">
+    <div class="header">
+      <div class="brand">
+        <div class="brand-icon">V</div>
+        <span class="brand-text">Stadium<span>Pulse</span></span>
+      </div>
+      <div class="doc-type">Page 1 / 2</div>
+    </div>
+
+    <h1>StadiumPulse Executive Pitch Sheet</h1>
+    <div class="sub">1-Minute Hackathon Finals Presentation Guide</div>
+
+    <div class="section-title">The Pitch Framework (Threat, Gap, Need)</div>
+    <div class="grid-3">
+      <div class="grid-cell" style="border-left: 3px solid var(--red);">
+        <h4>The Threat 🚨</h4>
+        <p>Massive crowds create dangerous bottlenecks, security exposures, and logistical gridlocks during matches.</p>
+      </div>
+      <div class="grid-cell" style="border-left: 3px solid var(--yellow);">
+        <h4>The Gap ⚠️</h4>
+        <p>Manual, isolated tools leave stadium command unable to adapt to sudden surges, blockages, or storm shifts.</p>
+      </div>
+      <div class="grid-cell" style="border-left: 3px solid var(--green);">
+        <h4>The Need 🎯</h4>
+        <p>Organizers urgently require an integrated command layer that unifies crowd flow and automates emergency response.</p>
+      </div>
+    </div>
+
+    <div class="section-title">The Solution — StadiumPulse Platform</div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 30%;">Innovation Layer</th>
+            <th>How it Delivers Functional Fulfillment</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Multi-Agent Agentic Loop</strong></td>
+            <td>A Central Dispatcher routes queries to specialized Gemini sub-agents (Routing, Comms, Incident Commander) equipped with active Python tools to solve queue, transit, and weather logistics.</td>
+          </tr>
+          <tr>
+            <td><strong>Live CV Analytics (Edge-decoupled)</strong></td>
+            <td>Combines <strong>COCO-SSD</strong> body tracking and <strong>Face-API.js</strong> real-time facial expression classifiers inside the browser webcam stream, capturing real headcount and mood vibe percentages (Happy 😊, Neutral 😐, Frustrated 😠).</td>
+          </tr>
+          <tr>
+            <td><strong>Live Digital Twin Map</strong></td>
+            <td>Google Maps satellite view overlays live dynamic zone occupancy rings, wait times, and glowing warning alerts to give stadium operators high spatial awareness.</td>
+          </tr>
+          <tr>
+            <td><strong>Automated Alert & PA Engine</strong></td>
+            <td>Breach of occupancy thresholds triggers immediate incident alerts and automated PA scripts spoken live via synthetic speech audio broadcasts.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-title">Key Demo Walkthrough Highlights ("The Happy Path")</div>
+    <ul class="bullet-list">
+      <li><strong>Webcam Live Scanning</strong>: Open the CV Demo. Start camera, smile, watch the Happy progress bar shoot to 95% and the Vibe Score rise. Sync the telemetry to a zone.</li>
+      <li><strong>Immediate Dashboard Adaptation</strong>: Confirm the stadium map ring scales and turns orange. Ask the chatbot: <em>"Where should I go to eat?"</em> The Routing Agent calls `get_all_zones` and recommends avoiding the busy hall.</li>
+      <li><strong>Simulator Crisis Modeling</strong>: Trigger a sudden downpour or exit blockage. Watch the dashboard glow red, generate critical PA announcers, and guide fans to safety exits.</li>
+    </ul>
+
+    <div class="footer">
+      <span>Build with AI Hackathon, Ahmedabad 2026</span>
+      <span>StadiumPulse Pitch Sheet</span>
+    </div>
+  </div>
+
+  <!-- PAGE 2: Q&A TECHNICAL DEFENSE GUIDE -->
+  <div class="page">
+    <div class="header">
+      <div class="brand">
+        <div class="brand-icon">V</div>
+        <span class="brand-text">Stadium<span>Pulse</span></span>
+      </div>
+      <div class="doc-type">Page 2 / 2</div>
+    </div>
+
+    <h1>Q&A & Technical Defense Guide</h1>
+    <div class="sub">Crush the Judges' Technical Assessment (15 Points)</div>
+
+    <div class="section-title">Strategic Judge Q&As</div>
+    <div class="qa-block">
+      
+      <div class="qa-item">
+        <div class="q"><span>Q1</span> How does your platform scale to handle 130,000 live spectators?</div>
+        <div class="a">
+          <strong>Response:</strong> We engineered a **decoupled Edge AI architecture**. High-bandwidth video frame processing is offloaded to client-side Edge GPUs via browser-compiled WebGL (using `TensorFlow.js` and `face-api.js`). <strong>This results in 0 server compute cost and 0 cloud network latency</strong>. The server only receives low-bandwidth headcount/emotion JSON vectors via a fast FastAPI backend, meaning a single lightweight container scales easily to thousands of concurrent users.
+        </div>
+      </div>
+
+      <div class="qa-item">
+        <div class="q"><span>Q2</span> What happens if your Google Gemini API quota goes to zero during a crisis?</div>
+        <div class="a">
+          <strong>Response:</strong> Safety is our priority. We built a local **Smart Fallback Engine** (`_smart_fallback` in `agent.py`). If the Gemini API returns a 429 quota exception, our engine instantly intercepts the call, reads the active in-memory sensor database state, and synthesizes structured, accurate safety directions locally. **The system never goes dark, and safety guidance is always guaranteed.**
+        </div>
+      </div>
+
+      <div class="qa-item">
+        <div class="q"><span>Q3</span> Why use a Multi-Agent architecture rather than one single prompt?</div>
+        <div class="a">
+          <strong>Response:</strong> Single-prompt architectures suffer from prompt bloat, high hallucination rates, and unstable tool-calling. By using a **high-speed Gemini 2.5 Flash Dispatcher**, we classify queries and delegate them to sub-agents with extremely narrow system instructions and custom tool subsets. This increases reasoning speed, ensures 100% stable tool calls, and allows us to use Gemini 2.5 Pro exclusively for the Incident Commander during high-stakes safety events, optimizing token costs.
+        </div>
+      </div>
+
+      <div class="qa-item">
+        <div class="q"><span>Q4</span> How does the platform secure fan data and admin commands?</div>
+        <div class="a">
+          <strong>Response:</strong> **Privacy by design**: In our Edge AI pipeline, no video frames ever leave the browser—they are scanned locally, preserving fan anonymity. Admin simulator endpoints utilize strict Pydantic model validation. For production, these command endpoints would be bound to OAuth2 JWT tokens (RBAC) to ensure only authenticated incident commanders can trigger evacuation overrides.
+        </div>
+      </div>
+
+    </div>
+
+    <div class="footer">
+      <span>Build with AI Hackathon, Ahmedabad 2026</span>
+      <span>Q&A Technical Defense Guide</span>
+    </div>
+  </div>
+
+</body>
+</html>

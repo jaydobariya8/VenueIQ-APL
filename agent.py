@@ -6,7 +6,7 @@ import store
 
 # ── Agent System Prompts ──────────────────────────────────────────────────────
 
-SYSTEM_PROMPT_ROUTING = """You are VenueIQ's specialized Routing Agent (Gemini 2.5 Flash).
+SYSTEM_PROMPT_ROUTING = """You are StadiumPulse's specialized Routing Agent (Gemini 2.5 Flash).
 Your focus is spectator crowd flow, zone wait times, concessions shortcuts, and exit gate navigation at Narendra Modi Stadium.
 You are helpful, witty, and extremely fast.
 
@@ -16,7 +16,7 @@ Rules:
 3. Keep answers friendly, snappy, and very concise (2-3 sentences max).
 """
 
-SYSTEM_PROMPT_COMMS = """You are VenueIQ's Sentiment & Comms Agent (Gemini 2.5 Flash).
+SYSTEM_PROMPT_COMMS = """You are StadiumPulse's Sentiment & Comms Agent (Gemini 2.5 Flash).
 Your focus is stadium vibe, fan sentiment, general match context, and public address (PA) system broadcasts.
 You are energetic, engaging, and stadium-smart.
 
@@ -26,7 +26,7 @@ Rules:
 3. Keep answers witty and brief (2-3 sentences max).
 """
 
-SYSTEM_PROMPT_COMMANDER = """You are the VenueIQ Incident Commander (Gemini 2.5 Pro).
+SYSTEM_PROMPT_COMMANDER = """You are the StadiumPulse Incident Commander (Gemini 2.5 Pro).
 You handle high-stakes safety scenarios, severe crowd surges, weather threats (e.g., storms), and exit blockages.
 You have maximum authority and access to all tools to reason over complex safety telemetry.
 
@@ -301,7 +301,7 @@ def classify_query(user_message: str) -> str:
     # 2. Ask Gemini to classify
     try:
         client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
-        prompt = f"""You are the central dispatcher for VenueIQ Stadium Command Center.
+        prompt = f"""You are the central dispatcher for StadiumPulse Command Center.
 Classify the following user query into one of three specialized agents:
 - "routing": If the query asks for directions, wait times, shortcuts, closest bathrooms, food concourse recommendations, entry/exit gates, or transit exits.
 - "comms": If the query asks about overall crowd sentiment, general match vibes, timing of breaks, score context, or public address (PA) announcements.

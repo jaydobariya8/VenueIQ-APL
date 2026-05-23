@@ -8,8 +8,8 @@ _BASE = "https://api.cricapi.com/v1"
 
 def fetch_live_match() -> dict | None:
     """
-    Fetch current live/recent T20/IPL match from cricapi.com.
-    Requires CRICKET_API_KEY in .env. Free plan: 100 calls/day.
+    Fetch live IPL/T20 match first; fall back to most recent completed match.
+    Requires CRICKET_API_KEY in env. Free plan: 100 calls/day.
     Returns patch dict for store.patch_match_context(), or None.
     """
     key = os.getenv("CRICKET_API_KEY")
@@ -18,7 +18,7 @@ def fetch_live_match() -> dict | None:
 
     try:
         url = f"{_BASE}/currentMatches?apikey={key}&offset=0"
-        req = urllib.request.Request(url, headers={"User-Agent": "VenueIQ/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "StadiumPulse/1.0"})
         with urllib.request.urlopen(req, timeout=8) as resp:
             data = json.loads(resp.read())
 
@@ -26,36 +26,60 @@ def fetch_live_match() -> dict | None:
             return None
 
         matches = data.get("data", [])
-        match = _pick_best(matches)
-        if not match:
-            return None
 
-        return _parse(match)
+        live = _pick_live(matches)
+        if live:
+            return _parse_live(live)
+
+        completed = _pick_completed(matches)
+        if completed:
+            return _parse_completed(completed)
+
+        return None
     except Exception:
         return None
 
 
-def _pick_best(matches: list) -> dict | None:
-    """Prefer live IPL/T20 match; fall back to any live match."""
+def _is_completed(m: dict) -> bool:
+    status = m.get("status", "").lower()
+    return "won" in status or "draw" in status or "tie" in status or m.get("matchEnded", False)
+
+
+def _pick_live(matches: list) -> dict | None:
+    """Prefer live IPL match, then T20, then any live."""
     live_ipl, live_t20, any_live = None, None, None
     for m in matches:
-        name   = m.get("name", "").upper()
-        status = m.get("status", "").lower()
-        mtype  = m.get("matchType", "").lower()
-        # skip completed matches
-        if "won" in status or "draw" in status or "tie" in status:
+        if _is_completed(m):
             continue
+        name  = m.get("name", "").upper()
+        mtype = m.get("matchType", "").lower()
         if "ipl" in name:
             live_ipl = m
         elif mtype == "t20":
             live_t20 = m
         else:
             any_live = m
-
     return live_ipl or live_t20 or any_live
 
 
-def _parse(m: dict) -> dict:
+def _pick_completed(matches: list) -> dict | None:
+    """Pick most recent completed IPL/T20 match."""
+    ipl, t20, any_done = None, None, None
+    for m in matches:
+        if not _is_completed(m):
+            continue
+        name  = m.get("name", "").upper()
+        mtype = m.get("matchType", "").lower()
+        if "ipl" in name and ipl is None:
+            ipl = m
+        elif mtype == "t20" and t20 is None:
+            t20 = m
+        elif any_done is None:
+            any_done = m
+    return ipl or t20 or any_done
+
+
+def _parse_live(m: dict) -> dict:
     teams   = m.get("teams", ["TBD", "TBD"])
     team_a  = teams[0] if teams else "TBD"
     team_b  = teams[1] if len(teams) > 1 else "TBD"
@@ -84,7 +108,6 @@ def _parse(m: dict) -> dict:
                 batting_team = team
                 break
 
-        # Real over count: 14.3 → 14 full + 3 balls = 14.5 overs
         over_int   = int(o)
         balls      = round((o - over_int) * 10)
         real_overs = over_int + balls / 6
@@ -96,6 +119,8 @@ def _parse(m: dict) -> dict:
 
     return {
         "match_title":   m.get("name", "Live Match"),
+        "match_status":  "live",
+        "match_result":  None,
         "team_a":        team_a,
         "team_b":        team_b,
         "batting_team":  batting_team,
@@ -105,6 +130,39 @@ def _parse(m: dict) -> dict:
         "innings":       innings,
         "target":        target,
         "recent_event":  m.get("status", "Match in progress"),
+        "venue":         m.get("venue", _store_venue()),
+    }
+
+
+def _parse_completed(m: dict) -> dict:
+    teams  = m.get("teams", ["TBD", "TBD"])
+    team_a = teams[0] if teams else "TBD"
+    team_b = teams[1] if len(teams) > 1 else "TBD"
+    scores = m.get("score", [])
+
+    score_a, score_b = "—", "—"
+    if len(scores) >= 1:
+        s = scores[0]
+        score_a = f"{s.get('r', 0)}/{s.get('w', 0)} ({s.get('o', 0)} ov)"
+    if len(scores) >= 2:
+        s = scores[1]
+        score_b = f"{s.get('r', 0)}/{s.get('w', 0)} ({s.get('o', 0)} ov)"
+
+    return {
+        "match_title":   m.get("name", "Recent Match"),
+        "match_status":  "completed",
+        "match_result":  m.get("status", "Match completed"),
+        "team_a":        team_a,
+        "team_b":        team_b,
+        "score_a":       score_a,
+        "score_b":       score_b,
+        "batting_team":  team_a,
+        "score":         score_a,
+        "overs":         "—",
+        "run_rate":      0.0,
+        "innings":       2,
+        "target":        None,
+        "recent_event":  m.get("status", "Match completed"),
         "venue":         m.get("venue", _store_venue()),
     }
 
