@@ -213,9 +213,9 @@
       <div class="scan-line" id="scanLine"></div>
 
       <div class="overlay" id="overlay">
-        <div class="ov-icon">🧠</div>
-        <div class="ov-title" id="ovTitle">Loading AI Model…</div>
-        <div class="ov-sub" id="ovSub">Downloading COCO-SSD from CDN — usually 3-10 seconds.</div>
+        <div class="ov-icon">📷</div>
+        <div class="ov-title" id="ovTitle">Click Start Camera</div>
+        <div class="ov-sub" id="ovSub">AI loading in background — camera works immediately.</div>
         <div class="load-wrap" id="loadWrap"><div class="load-bar"></div></div>
         <div id="ovStatus" style="font-size:12px;color:var(--muted);"></div>
         <button onclick="enableDemoMode()" id="skipBtn" style="display:none;margin-top:10px;padding:8px 22px;border-radius:8px;background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.45);color:#818cf8;font-size:12px;font-weight:700;cursor:pointer;">⚡ Skip — Use Demo Mode</button>
@@ -224,7 +224,7 @@
 
     <div class="controls" style="display:flex; flex-direction:column; gap:10px;">
       <div style="display:flex; gap:10px; width:100%;">
-        <button class="btn-start" id="startBtn" disabled onclick="startCamera()" style="flex:1;">📷 Start Camera</button>
+        <button class="btn-start" id="startBtn" onclick="startCamera()" style="flex:1;">📷 Start Camera</button>
         <button class="btn-start" id="uploadBtn" onclick="triggerUpload()" style="flex:1; background:rgba(99,102,241,0.1); border:1px solid #6366f1; color:#818cf8;">📁 Upload Photo</button>
         <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="handleFileUpload(event)" />
       </div>
@@ -1006,49 +1006,20 @@
     
     allObj.textContent = bodies.length + (data.faces || []).length;
 
-    const detList = document.getElementById('detList');
-    detList.innerHTML = `
-      <div class="det-item">
-        <div class="det-dot" style="background:var(--green);box-shadow:0 0 5px var(--green)"></div>
-        <span style="flex:1;font-weight:700">👤 Bodies Detected</span>
-        <span style="background:rgba(255,255,255,.05);padding:1px 7px;border-radius:99px;font-size:10px;">×${bodies.length}</span>
-      </div>
-      <div class="det-item">
-        <div class="det-dot" style="background:#3b82f6;box-shadow:0 0 5px #3b82f6"></div>
-        <span style="flex:1;font-weight:700">😊 Faces Tracked</span>
-        <span style="background:rgba(255,255,255,.05);padding:1px 7px;border-radius:99px;font-size:10px;">×${(data.faces || []).length}</span>
-      </div>
-      <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:8px;">
-        Pipeline: ${data.source === 'google_cloud_vision' ? '☁️ Google Cloud Vision SDK' : '⚡ Local OpenCV Fallback'}
-      </div>
-    `;
-
-  // ── Load models ────────────────────────────────────────────────────────────
+     // ── Load model silently in background ────────────────────────────────────────────
   async function loadModel() {
     try {
-      ovStatus.textContent = 'Initialising TensorFlow backend…';
       try { await tf.setBackend('webgl'); await tf.ready(); }
       catch (_) { await tf.setBackend('cpu'); await tf.ready(); }
+      ovStatus.textContent = 'Loading COCO-SSD in background…';
+      model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
       document.getElementById('tfBackend').textContent = tf.getBackend().toUpperCase();
-      ovStatus.textContent = 'Downloading COCO-SSD… (one model, ~3 MB)';
-
-      // Race against 15s timeout
-      model = await Promise.race([
-        cocoSsd.load({ base: 'lite_mobilenet_v2' }),
-        new Promise((_, r) => setTimeout(() => r(new Error('CDN_TIMEOUT')), 15000))
-      ]);
-
-      loadWrap.style.display = 'none';
-      document.getElementById('skipBtn').style.display = 'none';
-      ovTitle.textContent  = '✅ Ready — People Detector';
-      ovSub.textContent    = 'Click Start Camera to detect people live.';
-      ovStatus.style.color = 'var(--green)';
-      ovStatus.textContent = 'COCO-SSD loaded ✅';
-      startBtn.disabled    = false;
-      uploadBtn.disabled   = false;
-      setStatus('✅ AI Ready', 'var(--green)', 'var(--green-d)');
-    } catch (e) {
-      if (e.message === 'CDN_TIMEOUT' || true) { enableDemoMode(); }
+      ovStatus.textContent = 'AI Ready ✅';
+      setStatus('✅ AI Ready (COCO-SSD)', 'var(--green)', 'var(--green-d)');
+      console.log('✅ COCO-SSD loaded — switching to real detection');
+    } catch(e) {
+      console.warn('COCO-SSD failed to load — simulation continues:', e);
+      setStatus('⚡ Demo Mode', 'var(--accent)', 'var(--accent-d)');
     }
   }
 
@@ -1077,66 +1048,6 @@
     syncBtn.disabled       = false;
     document.getElementById('tfBackend').textContent = 'DEMO';
     setStatus('⚡ Demo / Cloud Mode', 'var(--accent)', 'var(--accent-d)');
-  }
-
-  function startDemoDetection() {
-    const W = canvas.width  || 640;
-    const H = canvas.height || 480;
-    let tick = 0;
-    const zones = [
-      { x: W*0.06, y: H*0.14, w: W*0.13, h: H*0.38 },
-      { x: W*0.26, y: H*0.10, w: W*0.12, h: H*0.40 },
-      { x: W*0.46, y: H*0.18, w: W*0.13, h: H*0.34 },
-      { x: W*0.64, y: H*0.12, w: W*0.12, h: H*0.37 },
-      { x: W*0.80, y: H*0.20, w: W*0.11, h: H*0.32 },
-    ];
-    function demoLoop() {
-      if (!detecting) return;
-      tick++;
-      ctx.clearRect(0, 0, W, H);
-      const count = 3 + Math.round(Math.abs(Math.sin(tick * 0.025)) * 2);
-      for (let i = 0; i < count; i++) {
-        const z = zones[i];
-        const jx = Math.sin(tick * 0.08 + i * 1.3) * 6;
-        const jy = Math.cos(tick * 0.06 + i * 0.9) * 4;
-        const x = z.x+jx, y = z.y+jy, w = z.w, h = z.h;
-        const conf = 82 + Math.floor(Math.sin(tick*0.05+i)*9);
-        ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2.5;
-        ctx.strokeRect(x, y, w, h);
-        const len = 12; ctx.lineWidth = 3.5;
-        [[x,y,1,1],[x+w,y,-1,1],[x,y+h,1,-1],[x+w,y+h,-1,-1]].forEach(([cx,cy,dx,dy])=>{
-          ctx.beginPath(); ctx.moveTo(cx+dx*len,cy); ctx.lineTo(cx,cy); ctx.lineTo(cx,cy+dy*len); ctx.stroke();
-        });
-        const label = `👤 Person ${conf}%`;
-        ctx.font = 'bold 11px Inter,sans-serif';
-        const tw = ctx.measureText(label).width;
-        const ly = y > 22 ? y-20 : y+4;
-        ctx.fillStyle='#22c55e'; ctx.beginPath(); ctx.roundRect(x,ly,tw+10,17,4); ctx.fill();
-        ctx.fillStyle='#000'; ctx.fillText(label,x+5,ly+12);
-      }
-      // Update stats
-      if (count !== lastCount) {
-        countNum.textContent = count;
-        countNum.className = 'count-num'+(count>=5?' yellow':count>=8?' red':'')+' pop';
-        setTimeout(()=>countNum.classList.remove('pop'),260);
-        lastCount = count;
-      }
-      const rH = Math.round(58 + Math.sin(tick*0.04)*14);
-      const rF = Math.round(4  + Math.abs(Math.sin(tick*0.07))*7);
-      const rN = Math.max(0, 100-rH-rF);
-      const rS = parseFloat(((rH*0.95+rN*0.6+rF*0.15)/100).toFixed(2));
-      lastEmotion = {happy:rH,neutral:rN,sad:0,frustrated:rF,avg_sentiment_score:rS};
-      vibeScore.textContent = rS.toFixed(2)+' / 1.0';
-      vibeScore.style.color = rS>=0.75?'var(--green)':'var(--yellow)';
-      happyVal.textContent=rH+'%'; happyBar.style.width=rH+'%';
-      neutralVal.textContent=rN+'%'; neutralBar.style.width=rN+'%';
-      frustratedVal.textContent=rF+'%'; frustratedBar.style.width=rF+'%';
-      confVal.textContent=(84+Math.floor(Math.random()*10))+'%'; confVal.style.color='var(--green)';
-      allObj.textContent=count; fpsLabel.textContent='30 FPS';
-      detList.innerHTML=`<div class="det-item"><div class="det-dot" style="background:var(--green);box-shadow:0 0 5px var(--green)"></div><span style="flex:1;font-weight:700">👤 Person</span><span style="background:rgba(255,255,255,.05);padding:1px 7px;border-radius:99px;font-size:10px;">×${count}</span><span style="font-weight:800;color:var(--green);margin-left:8px;">${85+Math.floor(Math.random()*10)}%</span></div><div style="font-size:10px;color:var(--muted);text-align:center;margin-top:8px;">Pipeline: ⚡ Demo Simulation</div>`;
-      rafId = requestAnimationFrame(demoLoop);
-    }
-    demoLoop();
   }
 
   // ── Camera ────────────────────────────────────────────────────────────────
@@ -1170,7 +1081,7 @@
       detecting              = true;
 
       setStatus('🎯 Detecting Live', 'var(--accent)', 'var(--accent-d)');
-      if (demoModeActive) { startDemoDetection(); } else { detectLoop(); }
+      detectLoop();
     } catch (e) {
       const msg = e.name === 'NotAllowedError'
         ? 'Camera permission denied — allow camera access and retry.'
@@ -1235,7 +1146,6 @@
 
         try {
           if (!model || demoModeActive) {
-            // No local model — use Cloud Vision API
             const formData = new FormData();
             formData.append('file', file);
             const resp = await fetch('/cv/detect', { method: 'POST', body: formData });
@@ -1539,28 +1449,18 @@
   }
 
   // ── Boot ──────────────────────────────────────────────────────────────────
-  // Show skip button after 5s if still loading
-  setTimeout(() => {
-    const skipBtn = document.getElementById('skipBtn');
-    if (skipBtn && overlay.style.display !== 'none') skipBtn.style.display = 'block';
-  }, 5000);
-  // Auto demo mode after 15s if AI still not loaded
-  setTimeout(() => {
-    if (!model && overlay.style.display !== 'none') enableDemoMode();
-  }, 15000);
-  // Safe boot — guard against CDN scripts not available
-  try {
-    if (typeof cocoSsd !== 'undefined') {
-      loadModel();
-    } else {
-      ovStatus.textContent = 'Waiting for AI libraries from CDN…';
-      window.addEventListener('load', () => {
-        if (typeof cocoSsd !== 'undefined') loadModel();
-        else enableDemoMode();
-      });
-    }
-  } catch(e) {
-    enableDemoMode();
+  // Buttons always enabled immediately — camera works before model loads
+  startBtn.disabled  = false;
+  uploadBtn.disabled = false;
+  setStatus('⚡ Camera Ready — AI loading…', 'var(--accent)', 'var(--accent-d)');
+
+  // Load model silently in background
+  if (typeof cocoSsd !== 'undefined') {
+    loadModel();
+  } else {
+    window.addEventListener('load', () => {
+      if (typeof cocoSsd !== 'undefined') loadModel();
+    });
   }
 </script>
 </body>

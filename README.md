@@ -49,7 +49,7 @@ StadiumPulse is an end-to-end **agentic AI platform** that replaces fragmented, 
 StadiumPulse is engineered to achieve a perfect score across all categories defined in the **Build with AI Agentic Premier League** official judging rubrics:
 
 ### 📊 Phase 1: Preliminary Screening Rubric (40 + 5 Points)
-![Phase 1 Rubric](static/media__phase1.jpg)
+
 
 | Criterion | Points | How StadiumPulse Satisfies It |
 |---|---|---|
@@ -61,7 +61,7 @@ StadiumPulse is engineered to achieve a perfect score across all categories defi
 ---
 
 ### 🎤 Phase 2: Live Pitch & Q&A Evaluation Rubric (50 Points)
-![Phase 2 Rubric](static/media__phase2.jpg)
+
 
 | Criterion | Points | How StadiumPulse Satisfies It |
 |---|---|---|
