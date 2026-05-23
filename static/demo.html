@@ -463,198 +463,6 @@
     statusPill.style.background  = bg;
   }
 
-  // ── Camera ────────────────────────────────────────────────────────────────
-  async function startCamera() {
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Webcam APIs are blocked in insecure contexts. Please open this page via http://localhost:8000 or an HTTPS secure origin.");
-      }
-
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
-      } catch (err) {
-        console.warn("Retrying camera with simple constraints due to error:", err);
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      }
-
-      video.srcObject = stream;
-      await new Promise(r => video.onloadedmetadata = r);
-      video.play();
-
-      canvas.width  = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      overlay.style.display  = 'none';
-      scanLine.style.display = 'block';
-      startBtn.style.display = 'none';
-      stopBtn.style.display  = 'block';
-      syncBtn.disabled       = false;
-      detecting              = true;
-
-      setStatus('🎯 Detecting', 'var(--accent)', 'var(--accent-d)');
-      detectLoop();
-    } catch (e) {
-      const msg = e.name === 'NotAllowedError'
-        ? 'Camera permission denied — allow camera access and retry.'
-        : 'Webcam blocked in insecure context. Click the new "📁 Upload Photo" button next to Start Camera to scan and sync stadium crowd images directly!';
-      ovTitle.textContent = '🔒 Webcam Blocked';
-      ovSub.textContent   = msg;
-      ovTitle.style.color = 'var(--yellow)';
-      loadWrap.style.display = 'none';
-      overlay.style.display  = 'flex';
-      setStatus('⚠️ Webcam Unavailable', 'var(--yellow)', 'var(--accent-d)');
-    }
-  }
-
-  function stopCamera() {
-    detecting = false;
-    if (rafId) cancelAnimationFrame(rafId);
-    stream?.getTracks().forEach(t => t.stop());
-    stream = null;
-    video.srcObject = null;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    ovTitle.textContent    = '📷 Camera Stopped';
-    ovTitle.style.color    = 'var(--text)';
-    ovSub.textContent      = 'Click Start Camera to resume.';
-    ovStatus.textContent   = '';
-    loadWrap.style.display = 'none';
-    overlay.style.display  = 'flex';
-    scanLine.style.display = 'none';
-    startBtn.style.display = 'block';
-    stopBtn.style.display  = 'none';
-    syncBtn.disabled       = true;
-    fpsLabel.textContent   = '-- FPS';
-    updateUI([], []);
-    setStatus('✅ Model Ready', 'var(--green)', 'var(--green-d)');
-  }
-
-  function triggerUpload() {
-    document.getElementById('fileInput').click();
-  }
-
-  async function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    if (detecting) {
-      stopCamera();
-    }
-
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      const img = new Image();
-      img.onload = async function() {
-        canvas.width  = img.width;
-        canvas.height = img.height;
-        overlay.style.display  = 'none';
-        scanLine.style.display = 'none';
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-
-        setStatus('🎯 Scanning Photo…', 'var(--accent)', 'var(--accent-d)');
-
-        try {
-          if (activePipeline === 'cloud') {
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            const resp = await fetch('/cv/detect', { method: 'POST', body: formData });
-            const data = await resp.json();
-            
-            drawServerBoxes(data);
-            updateServerUI(data);
-            syncBtn.disabled = false;
-            
-            setStatus(`✅ Server Scan (${data.source})`, 'var(--green)', 'var(--green-d)');
-          } else if (activePipeline === 'faceapi') {
-            await loadFaceAPI();
-            const detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })).withFaceExpressions();
-            drawFaceApiBoxes(detections);
-            updateFaceApiUI(detections);
-            syncBtn.disabled = false;
-            setStatus('✅ Face Scan Complete', 'var(--green)', 'var(--green-d)');
-          } else {
-            const preds = await model.detect(img);
-            const people = preds.filter(p => p.class === 'person');
-
-            drawBoxes(preds);
-            updateUI(people, preds);
-            syncBtn.disabled = false;
-            
-            setStatus('✅ Scan Complete', 'var(--green)', 'var(--green-d)');
-          }
-        } catch (err) {
-          console.error("Static image analysis error:", err);
-          setStatus('❌ Detection Failed', 'var(--red)', 'var(--red-d)');
-        }
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  // ── Detection loop ────────────────────────────────────────────────────────
-  async function detectLoop() {
-    if (!detecting) return;
-    const t0 = performance.now();
-
-    try {
-      if (activePipeline === 'cloud') {
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = video.videoWidth || 640;
-        tempCanvas.height = video.videoHeight || 480;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
-        
-        const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/jpeg', 0.8));
-        const formData = new FormData();
-        formData.append('file', blob, 'frame.jpg');
-        
-        const resp = await fetch('/cv/detect', { method: 'POST', body: formData });
-        const data = await resp.json();
-        
-        drawServerBoxes(data);
-        updateServerUI(data);
-
-        frameTs.push(t0);
-        frameTs = frameTs.filter(t => t > t0 - 1000);
-        fpsLabel.textContent = '☁️ ' + Math.min(10, frameTs.length) + ' FPS';
-
-        setTimeout(() => {
-          if (detecting) rafId = requestAnimationFrame(detectLoop);
-        }, 1000);
-        return;
-      } else if (activePipeline === 'faceapi') {
-        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })).withFaceExpressions();
-        
-        frameTs.push(t0);
-        frameTs = frameTs.filter(t => t > t0 - 1000);
-        fpsLabel.textContent = frameTs.length + ' FPS';
-
-        drawFaceApiBoxes(detections);
-        updateFaceApiUI(detections);
-      } else {
-        const preds  = await model.detect(video);
-        const people = preds.filter(p => p.class === 'person');
-
-        frameTs.push(t0);
-        frameTs = frameTs.filter(t => t > t0 - 1000);
-        fpsLabel.textContent = frameTs.length + ' FPS';
-
-        drawBoxes(preds);
-        updateUI(people, preds);
-      }
-    } catch (err) {
-      console.warn("Detection skipped/errored:", err);
-    }
-
-    rafId = requestAnimationFrame(detectLoop);
-  }
-
   // ── Draw Face-API Bounding Boxes ──────────────────────────────────────────
   function drawFaceApiBoxes(detections) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1136,12 +944,13 @@
             syncBtn.disabled = false;
             setStatus('✅ Cloud Scan Complete', 'var(--green)', 'var(--green-d)');
           } else {
+            if (!model) throw new Error('Model still loading — please wait a moment and retry.');
             const preds = await model.detect(img);
             const people = preds.filter(p => p.class === 'person');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, 0, 0);
-            drawBoxes(preds);
-            updateUI(people, preds);
+            drawCombinedBoxes(preds, []);
+            updateCombinedUI(people, preds, []);
             syncBtn.disabled = false;
             setStatus('✅ Scan Complete', 'var(--green)', 'var(--green-d)');
           }
@@ -1161,26 +970,59 @@
     const t0 = performance.now();
 
     try {
-      // 1. Detect bodies
-      const preds  = await model.detect(video);
-      const people = preds.filter(p => p.class === 'person');
+      if (activePipeline === 'cloud') {
+        // Cloud Vision: grab frame, POST to server, throttle to ~1 fps
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width  = video.videoWidth  || 640;
+        tempCanvas.height = video.videoHeight || 480;
+        tempCanvas.getContext('2d').drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+        const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/jpeg', 0.8));
+        const formData = new FormData();
+        formData.append('file', blob, 'frame.jpg');
+        const resp = await fetch('/cv/detect', { method: 'POST', body: formData });
+        const data = await resp.json();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawServerBoxes(data);
+        updateServerUI(data);
+        frameTs.push(t0);
+        frameTs = frameTs.filter(t => t > t0 - 1000);
+        fpsLabel.textContent = '☁️ ' + Math.min(10, frameTs.length) + ' FPS';
+        setTimeout(() => { if (detecting) rafId = requestAnimationFrame(detectLoop); }, 1000);
+        return;
 
-      // 2. Detect faces — only if face-api models are ready
-      let detections = [];
-      if (faceApiLoaded) {
-        try {
-          detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })).withFaceExpressions();
-        } catch(fe) { /* silently skip face detection on error */ }
+      } else if (activePipeline === 'faceapi') {
+        const detections = await faceapi.detectAllFaces(
+          video,
+          new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })
+        ).withFaceExpressions();
+        frameTs.push(t0);
+        frameTs = frameTs.filter(t => t > t0 - 1000);
+        fpsLabel.textContent = frameTs.length + ' FPS';
+        drawFaceApiBoxes(detections);
+        updateFaceApiUI(detections);
+
+      } else {
+        // Edge (COCO-SSD) — wait for model if still loading
+        if (!model) { rafId = requestAnimationFrame(detectLoop); return; }
+
+        const preds    = await model.detect(video);
+        const people   = preds.filter(p => p.class === 'person');
+        let detections = [];
+        if (faceApiLoaded) {
+          try {
+            detections = await faceapi.detectAllFaces(
+              video,
+              new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })
+            ).withFaceExpressions();
+          } catch(fe) { /* skip face errors silently */ }
+        }
+        frameTs.push(t0);
+        frameTs = frameTs.filter(t => t > t0 - 1000);
+        fpsLabel.textContent = frameTs.length + ' FPS';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawCombinedBoxes(preds, detections);
+        updateCombinedUI(people, preds, detections);
       }
-
-      frameTs.push(t0);
-      frameTs = frameTs.filter(t => t > t0 - 1000);
-      fpsLabel.textContent = frameTs.length + ' FPS';
-
-      // 3. Draw & update combined frames
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawCombinedBoxes(preds, detections);
-      updateCombinedUI(people, preds, detections);
     } catch (err) {
       console.warn("Detection skipped/errored:", err);
     }
