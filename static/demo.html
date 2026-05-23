@@ -224,7 +224,7 @@
     <div class="controls" style="display:flex; flex-direction:column; gap:10px;">
       <div style="display:flex; gap:10px; width:100%;">
         <button class="btn-start" id="startBtn" disabled onclick="startCamera()" style="flex:1;">📷 Start Camera</button>
-        <button class="btn-start" id="uploadBtn" disabled onclick="triggerUpload()" style="flex:1; background:rgba(99,102,241,0.1); border:1px solid #6366f1; color:#818cf8;">📁 Upload Photo</button>
+        <button class="btn-start" id="uploadBtn" onclick="triggerUpload()" style="flex:1; background:rgba(99,102,241,0.1); border:1px solid #6366f1; color:#818cf8;">📁 Upload Photo</button>
         <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="handleFileUpload(event)" />
       </div>
       <button class="btn-stop"  id="stopBtn"  onclick="stopCamera()">⏹ Stop</button>
@@ -430,13 +430,13 @@
     } catch (e) {
       const msg = e.name === 'NotAllowedError'
         ? 'Camera permission denied — allow camera access and retry.'
-        : 'Camera error: ' + e.message;
-      ovTitle.textContent = '🚫 Camera Error';
+        : 'Webcam blocked in insecure context. Click the new "📁 Upload Photo" button next to Start Camera to scan and sync stadium crowd images directly!';
+      ovTitle.textContent = '🔒 Webcam Blocked';
       ovSub.textContent   = msg;
-      ovTitle.style.color = 'var(--red)';
+      ovTitle.style.color = 'var(--yellow)';
       loadWrap.style.display = 'none';
       overlay.style.display  = 'flex';
-      setStatus('❌ Camera Error', 'var(--red)', 'var(--red-d)');
+      setStatus('⚠️ Webcam Unavailable', 'var(--yellow)', 'var(--accent-d)');
     }
   }
 
