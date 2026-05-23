@@ -98,11 +98,15 @@ _INITIAL_DATA = {
     "match_context": {
         "match_id": "IPL-2026-M42",
         "match_title": "IPL 2026 — Match 42",
+        "match_status": "live",
+        "match_result": None,
         "venue": "Narendra Modi Stadium, Ahmedabad",
         "team_a": "RCB",
         "team_b": "GT",
         "batting_team": "RCB",
         "score": "127/3",
+        "score_a": "127/3 (14.3 ov)",
+        "score_b": "—",
         "overs": "14.3",
         "run_rate": 8.7,
         "target": None,
@@ -117,6 +121,17 @@ _INITIAL_DATA = {
         "overall_crowd_sentiment": 0.78,
         "crowd_density": "HIGH",
     },
+    "stadium_state": {
+        "emergency_mode": False,
+        "emergency_type": "none",
+        "weather": "sunny",
+        "gates": {
+            "gate_1": {"name": "Gate 1 (North Stand Exit)", "status": "OPEN", "queue_count": 140, "capacity_rate": 200},
+            "gate_2": {"name": "Gate 2 (East Wing Exit)", "status": "OPEN", "queue_count": 85, "capacity_rate": 150},
+            "gate_3": {"name": "Gate 3 (South Stand Exit)", "status": "OPEN", "queue_count": 320, "capacity_rate": 250},
+            "gate_4": {"name": "Gate 4 (West Wing Exit)", "status": "OPEN", "queue_count": 95, "capacity_rate": 180},
+        }
+    }
 }
 
 _store: dict = copy.deepcopy(_INITIAL_DATA)
@@ -140,6 +155,14 @@ def get_match_context() -> dict:
     return _store["match_context"]
 
 
+def get_stadium_state() -> dict:
+    return _store["stadium_state"]
+
+
+def get_gates() -> dict:
+    return _store["stadium_state"]["gates"]
+
+
 def get_stats() -> dict:
     zones = _store["zones"]
     avg_occ  = sum(z["occupancy_percent"] for z in zones.values()) / len(zones)
@@ -148,6 +171,7 @@ def get_stats() -> dict:
     clear    = [k for k, v in zones.items() if v["occupancy_percent"] < 50]
     density  = "LOW" if avg_occ < 50 else "MEDIUM" if avg_occ < 72 else "HIGH"
     mc       = _store["match_context"]
+    ss       = _store["stadium_state"]
     return {
         "avg_occupancy_percent": round(avg_occ, 1),
         "avg_sentiment_score":   round(avg_sent, 2),
@@ -156,6 +180,87 @@ def get_stats() -> dict:
         "clear_zones":           clear,
         "total_zones":           len(zones),
         "match_context":         mc,
+        "stadium_state":         ss,
+    }
+
+
+def get_predicted_state(horizon_min: int) -> dict:
+    """
+    Computes a simulated future state of all stadium zones and stats
+    after 'horizon_min' minutes have elapsed, factoring in match breaks.
+    """
+    # 1. Deepcopy the current store
+    future = copy.deepcopy(_store)
+    
+    # 2. Advance match time
+    mc = future["match_context"]
+    ss = future["stadium_state"]
+    
+    current_min = mc.get("current_minute", 0)
+    future_min = min(120, current_min + horizon_min)
+    mc["current_minute"] = future_min
+    
+    # Advance overs in the future context (roughly 1 over every 4 minutes)
+    try:
+        over_num = min(20, future_min // 4)
+        ball_num = (future_min % 4) * 1 + random.randint(0, 1)
+        ball_num = min(ball_num, 5)
+        mc["overs"] = f"{over_num}.{ball_num}"
+    except Exception:
+        pass
+        
+    # Calculate time to innings break in the future
+    innings_break = mc.get("innings_break_minute", 90)
+    time_to_break = innings_break - future_min
+    
+    # 3. Simulate future zone surges based on match timeline
+    # Innings break surge: fans head to restrooms and food stalls
+    is_break_period = -5 <= time_to_break <= 15
+    is_approaching_break = 0 < time_to_break <= 8
+    
+    for key, zone in future["zones"].items():
+        # Baseline drift
+        drift = random.randint(-2, 2)
+        zone["occupancy_percent"] = max(10, min(100, zone["occupancy_percent"] + drift))
+        
+        # Apply structured forecasting logic
+        if is_break_period:
+            if zone["type"] == "restroom":
+                zone["occupancy_percent"] = min(100, zone["occupancy_percent"] + 25)
+                zone["wait_time_min"] = min(45, zone["wait_time_min"] + 8)
+                zone["emotion"]["avg_sentiment_score"] = round(max(0.2, zone["emotion"]["avg_sentiment_score"] - 0.12), 2)
+            elif zone["type"] == "food":
+                zone["occupancy_percent"] = min(100, zone["occupancy_percent"] + 20)
+                zone["wait_time_min"] = min(40, zone["wait_time_min"] + 10)
+                zone["emotion"]["avg_sentiment_score"] = round(max(0.2, zone["emotion"]["avg_sentiment_score"] - 0.10), 2)
+        elif is_approaching_break:
+            # Anticipatory restroom surge
+            if zone["type"] == "restroom":
+                zone["occupancy_percent"] = min(100, zone["occupancy_percent"] + 12)
+                zone["wait_time_min"] = min(45, zone["wait_time_min"] + 3)
+        
+        # Sync headcount
+        zone["count"] = round(zone["occupancy_percent"] * zone["capacity"] / 100)
+        
+    # 4. Compute predicted stats
+    zones = future["zones"]
+    avg_occ  = sum(z["occupancy_percent"] for z in zones.values()) / len(zones)
+    avg_sent = sum(z["emotion"]["avg_sentiment_score"] for z in zones.values()) / len(zones)
+    crowded  = [k for k, v in zones.items() if v["occupancy_percent"] > 75]
+    clear    = [k for k, v in zones.items() if v["occupancy_percent"] < 50]
+    density  = "LOW" if avg_occ < 50 else "MEDIUM" if avg_occ < 72 else "HIGH"
+    
+    return {
+        "avg_occupancy_percent": round(avg_occ, 1),
+        "avg_sentiment_score":   round(avg_sent, 2),
+        "crowd_density":         density,
+        "crowded_zones":         crowded,
+        "clear_zones":           clear,
+        "total_zones":           len(zones),
+        "match_context":         mc,
+        "stadium_state":         ss,
+        "zones":                 zones,
+        "horizon_minutes":       horizon_min
     }
 
 
@@ -194,11 +299,45 @@ def simulate_surge(zone_name: str) -> bool:
 
 def simulate_event(event_name: str) -> None:
     ctx = _store["match_context"]
+    ss = _store["stadium_state"]
     ctx["recent_event"]    = event_name
     ctx["current_minute"]  = min(120, ctx["current_minute"] + 2)
-    if any(w in event_name.lower() for w in ["wicket", "out"]):
+    
+    if "rain" in event_name.lower() or "downpour" in event_name.lower() or "storm" in event_name.lower():
+        ss["weather"] = "rainy"
+        ss["emergency_mode"] = True
+        ss["emergency_type"] = "weather"
+        
+        # Surge covered/indoor zones
+        update_zone("concession_main", {"occupancy_percent": 96, "wait_time_min": 28, "emotion": {"avg_sentiment_score": 0.38, "frustrated": 45, "happy": 20}})
+        update_zone("premium_pavilion", {"occupancy_percent": 98, "wait_time_min": 8, "emotion": {"avg_sentiment_score": 0.72, "frustrated": 12, "happy": 60}})
+        update_zone("restroom_north", {"occupancy_percent": 88, "wait_time_min": 18, "emotion": {"avg_sentiment_score": 0.44, "frustrated": 30, "happy": 25}})
+        update_zone("restroom_south", {"occupancy_percent": 78, "wait_time_min": 11, "emotion": {"avg_sentiment_score": 0.52, "frustrated": 20, "happy": 30}})
+        
+        # Express kiosk is outdoors/semi-covered, so fans leave it
+        update_zone("concession_express", {"occupancy_percent": 42, "wait_time_min": 4, "emotion": {"avg_sentiment_score": 0.65, "frustrated": 15, "happy": 45}})
+        
+        ss["gates"]["gate_3"]["queue_count"] = 520
+        ctx["overall_crowd_sentiment"] = 0.55
+        ctx["crowd_density"] = "HIGH"
+        
+    elif "breach" in event_name.lower() or "security" in event_name.lower() or "alert" in event_name.lower():
+        ss["emergency_mode"] = True
+        ss["emergency_type"] = "security"
+        ss["gates"]["gate_3"]["status"] = "BLOCKED"
+        ss["gates"]["gate_3"]["queue_count"] = 680
+        
+        # Crowd surges near Gate 3 (South exit area)
+        update_zone("restroom_south", {"occupancy_percent": 94, "wait_time_min": 24, "emotion": {"avg_sentiment_score": 0.32, "frustrated": 60, "happy": 10}})
+        update_zone("concession_express", {"occupancy_percent": 95, "wait_time_min": 26, "emotion": {"avg_sentiment_score": 0.35, "frustrated": 55, "happy": 15}})
+        
+        ctx["overall_crowd_sentiment"] = 0.48
+        ctx["crowd_density"] = "HIGH"
+        
+    elif any(w in event_name.lower() for w in ["wicket", "out"]):
         ctx["overall_crowd_sentiment"] = round(max(0.3, ctx["overall_crowd_sentiment"] - 0.06), 2)
         ctx["crowd_density"] = "HIGH"
+        
     elif any(w in event_name.lower() for w in ["six", "four", "boundary"]):
         ctx["overall_crowd_sentiment"] = round(min(1.0, ctx["overall_crowd_sentiment"] + 0.04), 2)
 
@@ -243,3 +382,5 @@ def reset() -> None:
     _store["zones"].update(fresh["zones"])
     _store["match_context"].clear()
     _store["match_context"].update(fresh["match_context"])
+    _store["stadium_state"].clear()
+    _store["stadium_state"].update(fresh["stadium_state"])

@@ -75,11 +75,57 @@ def _recently_alerted(zone_key: str, minutes: int = 15) -> bool:
     return False
 
 
+def _build_emergency_alert(em_type: str, ss: dict) -> dict:
+    import uuid
+    if em_type == "weather":
+        staff_alert = "⛈️ Sudden Downpour / Storm Alert! Stadium covered zones (VIP Lounge, Concession Hall) at capacity. Deploy flow control officers to guide fans to dry exits."
+        pa_message = "Attention Fans: Sudden rain is hitting Narendra Modi Stadium. Concourse areas are busy. Please proceed slowly. Follow green lit exits for indoor shelter."
+        action = "redirect_fans"
+        trigger = "Sudden Storm ⛈️"
+    elif em_type == "security":
+        staff_alert = "🚨 Security Alert: Gate 3 (South Exit) has been BLOCKED. Redirect south stands fans to Gates 1, 2 and 4 exit routes immediately."
+        pa_message = "Operations Update: Gate 3 is currently closed. For a fast and smooth exit, please proceed to Gate 1 or Gate 4."
+        action = "deploy_staff"
+        trigger = "Gate 3 Blocked 🚨"
+    else:
+        staff_alert = "🚨 General Stadium Emergency Protocol Activated. Monitor all gates and zones."
+        pa_message = "Please follow instructions from stadium stewards and staff."
+        action = "monitor"
+        trigger = "General Emergency"
+
+    return {
+        "id": str(uuid.uuid4()),
+        "zone_key": f"emergency_{em_type}",
+        "zone_name": "STADIUM OPERATIONS COMMAND",
+        "zone_id": "HQ-CMD",
+        "section": "Stadium Wide",
+        "severity": "CRITICAL",
+        "trigger": trigger,
+        "staff_alert": staff_alert,
+        "pa_message": pa_message,
+        "action": action,
+        "occupancy_percent": 90,
+        "wait_time_min": 15,
+        "timestamp": _now(),
+        "acknowledged": False,
+    }
+
+
 def check_and_generate() -> list[dict]:
     zones = store.get_all_zones()
     mc = store.get_match_context()
+    ss = store.get_stadium_state()
     new_alerts: list[dict] = []
 
+    # 1. Check for stadium-wide emergency mode
+    if ss.get("emergency_mode", False):
+        em_type = ss.get("emergency_type", "none")
+        if not _recently_alerted(f"emergency_{em_type}", minutes=5):
+            alert = _build_emergency_alert(em_type, ss)
+            _store.insert(0, alert)
+            new_alerts.append(alert)
+
+    # 2. Check individual zones
     for zone_key, zone in zones.items():
         occ  = zone["occupancy_percent"]
         wait = zone["wait_time_min"]

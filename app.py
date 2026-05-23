@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI):
     await asyncio.gather(*tasks, return_exceptions=True)
 
 
-app = FastAPI(title="VenueIQ Crowd Intelligence", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="StadiumPulse Crowd Intelligence", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,6 +66,7 @@ _hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
 
 class AskRequest(BaseModel):
     question: str
+    role: str = "fan"
 
 
 class UpdateZoneRequest(BaseModel):
@@ -106,78 +107,207 @@ async def demo():
     return FileResponse("static/demo.html")
 
 
+def _likelihood_score(likelihood) -> float:
+    # Google Cloud Vision likelihood enums map to numeric values between 0.05 and 0.95
+    val = int(likelihood)
+    mapping = {
+        0: 0.1,  # UNKNOWN
+        1: 0.05, # VERY_UNLIKELY
+        2: 0.2,  # UNLIKELY
+        3: 0.5,  # POSSIBLE
+        4: 0.8,  # LIKELY
+        5: 0.95  # VERY_LIKELY
+    }
+    return mapping.get(val, 0.1)
+
+
 @app.post("/cv/detect")
 async def cv_detect(file: UploadFile = File(...)):
     """
-    Receives a JPEG frame from the browser, runs OpenCV people + face detection,
-    returns bounding boxes and count as JSON.
+    Receives a JPEG frame from the browser, runs Google Cloud Vision API
+    (falling back to local OpenCV if credentials are not configured),
+    returns bounding boxes, count, and dynamic aggregate crowd emotions as JSON.
     """
     data = await file.read()
     nparr = np.frombuffer(data, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
     if img is None:
-        return {"count": 0, "faces": [], "bodies": []}
+        return {"count": 0, "faces": [], "bodies": [], "emotion": {"happy": 50, "neutral": 50, "sad": 0, "frustrated": 0, "avg_sentiment_score": 0.6}}
 
     h, w = img.shape[:2]
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # ── Face detection (works great for demos with people facing camera) ──
-    faces_raw = _face_cascade.detectMultiScale(
-        gray,
-        scaleFactor=1.1,
-        minNeighbors=5,
-        minSize=(30, 30),
-        flags=cv2.CASCADE_SCALE_IMAGE,
-    )
-    faces = []
-    if len(faces_raw):
-        for (x, y, fw, fh) in faces_raw:
-            # Extend box downward to approximate full-body bounding box for UI
-            body_y = y
-            body_h = min(int(fh * 4.5), h - y)
-            faces.append({
-                "face_box":  [int(x), int(y), int(fw), int(fh)],
-                "body_box":  [int(x - fw // 3), body_y, int(fw * 1.6), body_h],
-                "score":     0.9,
-            })
+    # Try Google Cloud Vision API first
+    try:
+        from google.cloud import vision
+        client = vision.ImageAnnotatorClient()
+        image = vision.Image(content=data)
+        
+        # 1. Object Localization to find people
+        objects_response = client.object_localization(image=image)
+        bodies = []
+        for obj in objects_response.localized_object_annotations:
+            if obj.name.lower() == "person":
+                vertices = obj.bounding_poly.normalized_vertices
+                if len(vertices) >= 4:
+                    xs = [v.x * w for v in vertices]
+                    ys = [v.y * h for v in vertices]
+                    x_min, x_max = int(min(xs)), int(max(xs))
+                    y_min, y_max = int(min(ys)), int(max(ys))
+                    bodies.append({
+                        "box": [x_min, y_min, x_max - x_min, y_max - y_min],
+                        "score": float(obj.score)
+                    })
 
-    # ── HOG full-body detection (for people not facing camera) ──
-    scale = min(1.0, 640 / w)
-    small = cv2.resize(img, (int(w * scale), int(h * scale)))
-    hog_boxes, hog_weights = _hog.detectMultiScale(
-        small,
-        winStride=(8, 8),
-        padding=(4, 4),
-        scale=1.05,
-        finalThreshold=2,
-    )
-    bodies = []
-    if len(hog_boxes):
-        for i, (x, y, bw, bh) in enumerate(hog_boxes):
-            bodies.append({
-                "box":   [int(x / scale), int(y / scale), int(bw / scale), int(bh / scale)],
-                "score": float(hog_weights[i]),
-            })
+        # 2. Face Detection
+        face_response = client.face_detection(image=image)
+        faces = []
+        
+        total_faces = len(face_response.face_annotations)
+        agg_happy = 50.0
+        agg_frustrated = 10.0
+        agg_sad = 10.0
+        agg_neutral = 30.0
+        agg_sentiment = 0.70
 
-    # Best count: prefer face count (more reliable in demo), fallback to HOG
-    count = max(len(faces), len(bodies))
+        if total_faces > 0:
+            joy_sum = 0.0
+            anger_sum = 0.0
+            sorrow_sum = 0.0
+            surprise_sum = 0.0
+            for face in face_response.face_annotations:
+                vertices = face.bounding_poly.vertices
+                if len(vertices) >= 4:
+                    xs = [v.x for v in vertices]
+                    ys = [v.y for v in vertices]
+                    x_min, x_max = int(min(xs)), int(max(xs))
+                    y_min, y_max = int(min(ys)), int(max(ys))
+                    
+                    fw, fh = x_max - x_min, y_max - y_min
+                    body_y = y_min
+                    body_h = min(int(fh * 4.5), h - y_min)
+                    
+                    faces.append({
+                        "face_box": [x_min, y_min, fw, fh],
+                        "body_box": [int(x_min - fw // 3), body_y, int(fw * 1.6), body_h],
+                        "score": float(face.detection_confidence)
+                    })
+                
+                joy_sum += _likelihood_score(face.joy_likelihood)
+                anger_sum += _likelihood_score(face.anger_likelihood)
+                sorrow_sum += _likelihood_score(face.sorrow_likelihood)
+                surprise_sum += _likelihood_score(face.surprise_likelihood)
 
-    return {
-        "count":  count,
-        "faces":  faces,
-        "bodies": bodies,
-        "frame":  {"w": w, "h": h},
-    }
+            avg_joy = joy_sum / total_faces
+            avg_anger = anger_sum / total_faces
+            avg_sorrow = sorrow_sum / total_faces
+            avg_surprise = surprise_sum / total_faces
+
+            agg_happy = round(avg_joy * 100)
+            agg_frustrated = round(avg_anger * 70 + avg_surprise * 30)
+            agg_sad = round(avg_sorrow * 100)
+            
+            total_spec = agg_happy + agg_frustrated + agg_sad
+            if total_spec >= 100:
+                agg_happy = round(agg_happy * 90 / total_spec)
+                agg_frustrated = round(agg_frustrated * 90 / total_spec)
+                agg_sad = round(agg_sad * 90 / total_spec)
+            
+            agg_neutral = 100 - (agg_happy + agg_frustrated + agg_sad)
+            agg_neutral = max(0, agg_neutral)
+            
+            agg_sentiment = round((agg_happy * 0.95 + agg_neutral * 0.6 + agg_sad * 0.2 + agg_frustrated * 0.15) / 100, 2)
+            agg_sentiment = max(0.15, min(0.95, agg_sentiment))
+
+        count = max(len(faces), len(bodies))
+        return {
+            "count": count,
+            "faces": faces,
+            "bodies": bodies,
+            "frame": {"w": w, "h": h},
+            "source": "google_cloud_vision",
+            "emotion": {
+                "happy": int(agg_happy),
+                "neutral": int(agg_neutral),
+                "sad": int(agg_sad),
+                "frustrated": int(agg_frustrated),
+                "avg_sentiment_score": float(agg_sentiment)
+            }
+        }
+        
+    except Exception:
+        # Fallback to local OpenCV if Google Cloud Vision is not configured or errors out
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        faces_raw = _face_cascade.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=5,
+            minSize=(30, 30),
+            flags=cv2.CASCADE_SCALE_IMAGE,
+        )
+        faces = []
+        if len(faces_raw):
+            for (x, y, fw, fh) in faces_raw:
+                body_y = y
+                body_h = min(int(fh * 4.5), h - y)
+                faces.append({
+                    "face_box":  [int(x), int(y), int(fw), int(fh)],
+                    "body_box":  [int(x - fw // 3), body_y, int(fw * 1.6), body_h],
+                    "score":     0.9,
+                })
+
+        scale = min(1.0, 640 / w)
+        small = cv2.resize(img, (int(w * scale), int(h * scale)))
+        hog_boxes, hog_weights = _hog.detectMultiScale(
+            small,
+            winStride=(8, 8),
+            padding=(4, 4),
+            scale=1.05,
+            finalThreshold=2,
+        )
+        bodies = []
+        if len(hog_boxes):
+            for i, (x, y, bw, bh) in enumerate(hog_boxes):
+                bodies.append({
+                    "box":   [int(x / scale), int(y / scale), int(bw / scale), int(bh / scale)],
+                    "score": float(hog_weights[i]),
+                })
+
+        count = max(len(faces), len(bodies))
+        
+        # Realistic mock sentiment for local testing
+        import random
+        m_happy = random.randint(45, 75)
+        m_frustrated = random.randint(5, 18)
+        m_sad = random.randint(3, 10)
+        m_neutral = 100 - (m_happy + m_frustrated + m_sad)
+        m_sentiment = round((m_happy * 0.95 + m_neutral * 0.6 + m_sad * 0.2 + m_frustrated * 0.15) / 100, 2)
+        
+        return {
+            "count":  count,
+            "faces":  faces,
+            "bodies": bodies,
+            "frame":  {"w": w, "h": h},
+            "source": "opencv_fallback",
+            "emotion": {
+                "happy": m_happy,
+                "neutral": m_neutral,
+                "sad": m_sad,
+                "frustrated": m_frustrated,
+                "avg_sentiment_score": m_sentiment
+            }
+        }
 
 
 @app.post("/ask")
 async def ask(req: AskRequest):
     question = req.question.strip()
+    role = req.role.strip() if req.role else "fan"
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
     try:
-        result = await asyncio.to_thread(run_agent, question)
+        result = await asyncio.to_thread(run_agent, question, role)
         return result
     except Exception as e:
         return {"answer": f"Agent error: {e}", "tools_used": []}
@@ -191,6 +321,11 @@ async def zones():
 @app.get("/stats")
 async def stats():
     return store.get_stats()
+
+
+@app.get("/stats/predicted")
+async def stats_predicted(horizon: int = 10):
+    return store.get_predicted_state(horizon)
 
 
 @app.post("/update-zone")
