@@ -97,14 +97,28 @@ _TOOL_DEFS = {
         "description": "Get optimized evacuation instructions and open exits when stadium-wide emergency mode is active",
         "parameters": {"type": "object", "properties": {}},
     },
+    "get_crowd_predictions": {
+        "name": "get_crowd_predictions",
+        "description": "Predict stadium-wide zone occupancy and queue wait times 5, 10, or 15 minutes into the future based on match timelines.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "horizon_minutes": {
+                    "type": "integer",
+                    "description": "The forecast time horizon in minutes (e.g. 5, 10, 15, or 20 minutes).",
+                }
+            },
+            "required": ["horizon_minutes"],
+        },
+    },
 }
 
 # ── Tool Mappings per Agent ───────────────────────────────────────────────────
 
 AGENT_TOOLS_MAPPING = {
-    "routing": ["get_zone_status", "recommend_zone", "get_all_zones", "get_gate_status"],
+    "routing": ["get_zone_status", "recommend_zone", "get_all_zones", "get_gate_status", "get_crowd_predictions"],
     "comms": ["get_sentiment_insights", "get_match_context"],
-    "commander": ["get_zone_status", "get_all_zones", "get_match_context", "recommend_zone", "get_sentiment_insights", "get_gate_status", "get_evacuation_routes"]
+    "commander": ["get_zone_status", "get_all_zones", "get_match_context", "recommend_zone", "get_sentiment_insights", "get_gate_status", "get_evacuation_routes", "get_crowd_predictions"]
 }
 
 # ── Tool Execution logic ──────────────────────────────────────────────────────
@@ -187,6 +201,34 @@ def _execute_tool(name: str, args: dict) -> str:
                 for g in blocked_gates
             ]
         })
+
+    if name == "get_crowd_predictions":
+        horizon = int(args.get("horizon_minutes", 10))
+        pred = store.get_predicted_state(horizon)
+        summary = {
+            "time_horizon_minutes": horizon,
+            "overall_prediction": f"Expected average occupancy will be {pred['avg_occupancy_percent']}% with overall {pred['crowd_density']} density. Average crowd sentiment score: {pred['avg_sentiment_score']}/1.0.",
+            "crowded_zones_forecasted": [
+                {
+                    "zone_key": k,
+                    "name": z["name"],
+                    "predicted_occupancy": f"{z['occupancy_percent']}%",
+                    "predicted_wait_time": f"{z['wait_time_min']} mins",
+                    "status": "CRITICAL SURGE Expected" if z["occupancy_percent"] >= 85 else "WARNING expected"
+                }
+                for k, z in pred["zones"].items() if k in pred["crowded_zones"]
+            ],
+            "clear_zones_forecasted": [
+                {
+                    "zone_key": k,
+                    "name": z["name"],
+                    "predicted_occupancy": f"{z['occupancy_percent']}%",
+                    "predicted_wait_time": f"{z['wait_time_min']} mins"
+                }
+                for k, z in pred["zones"].items() if k in pred["clear_zones"]
+            ]
+        }
+        return json.dumps(summary)
 
     return json.dumps({"error": f"Unknown tool: {name}"})
 

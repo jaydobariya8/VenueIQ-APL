@@ -247,6 +247,11 @@ async def stats():
     return store.get_stats()
 
 
+@app.get("/stats/predicted")
+async def stats_predicted(horizon: int = 10):
+    return store.get_predicted_state(horizon)
+
+
 @app.post("/update-zone")
 async def update_zone(req: UpdateZoneRequest):
     ok = store.update_zone(req.zone_name, req.patch)

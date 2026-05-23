@@ -72,6 +72,16 @@
       100% { border-color: rgba(239, 68, 68, 0.95); }
     }
 
+    .predictive-glow {
+      box-shadow: 0 0 25px rgba(168, 85, 247, 0.45) !important;
+      border-color: #a855f7 !important;
+      animation: predictivePulse 2s infinite alternate;
+    }
+    @keyframes predictivePulse {
+      0% { border-color: rgba(168, 85, 247, 0.4); }
+      100% { border-color: rgba(168, 85, 247, 0.95); }
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
     body { background: var(--bg-primary); color: var(--text-primary); transition: background 0.3s, color 0.3s; height: 100vh; overflow: hidden; }
     
@@ -360,7 +370,7 @@
 
     /* ── Google Maps Stadium Digital Twin ── */
 
-    const StadiumGoogleMap = ({ zones, activeZone, onZoneClick, stadiumState }) => {
+    const StadiumGoogleMap = ({ zones, activeZone, onZoneClick, stadiumState, predictiveMode, predictiveHorizon }) => {
       const mapRef = React.useRef(null);
       const googleMapInstance = React.useRef(null);
       const circlesRef = React.useRef({});
@@ -456,15 +466,34 @@
       const isEmergency = stadiumState?.emergency_mode;
 
       return (
-        <div className={`stat-card fade-in ${isEmergency ? 'emergency-glow' : ''}`} style={{ 
+        <div className={`stat-card fade-in ${predictiveMode ? 'predictive-glow' : isEmergency ? 'emergency-glow' : ''}`} style={{ 
           background: 'var(--bg-card)', 
-          border: `1px solid ${isEmergency ? 'var(--danger)' : 'var(--border)'}`, 
+          border: `1px solid ${predictiveMode ? 'var(--accent)' : isEmergency ? 'var(--danger)' : 'var(--border)'}`, 
           borderRadius: 24, 
           padding: 20, 
           marginBottom: 24,
           position: 'relative'
         }}>
-          {isEmergency && (
+          {predictiveMode ? (
+            <div className="emergency-header" style={{
+              background: 'linear-gradient(90deg, #6366f1, #a855f7)',
+              color: 'white',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              padding: '6px 20px',
+              fontSize: 10,
+              fontWeight: 800,
+              textAlign: 'center',
+              textTransform: 'uppercase',
+              letterSpacing: 1.5,
+              zIndex: 10,
+              boxShadow: '0 2px 10px rgba(168,85,247,0.3)'
+            }}>
+              🔮 AI PREDICTIVE FORECAST ACTIVE (+{predictiveHorizon} MINUTES)
+            </div>
+          ) : isEmergency ? (
             <div className="emergency-header" style={{
               background: 'var(--danger)',
               color: 'white',
@@ -483,9 +512,9 @@
             }}>
               ⚠️ EMERGENCY: dynamic stadium flows active
             </div>
-          )}
+          ) : null}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: isEmergency ? 16 : 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: (predictiveMode || isEmergency) ? 16 : 0 }}>
             <div>
               <div className="nav-label" style={{ margin: 0, fontSize: 11 }}>Narendra Modi Stadium — Digital Twin Map</div>
               <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>Interactive Google Satellite Live Telemetry. Click overlays to query details.</div>
@@ -695,6 +724,8 @@
       const [activeTab, setActiveTab] = useState('dashboard');
       const [activeRole, setActiveRole] = useState('staff'); // Default to Ops command
       const [simStatus, setSimStatus] = useState(null);
+      const [predictiveMode, setPredictiveMode] = useState(false);
+      const [predictiveHorizon, setPredictiveHorizon] = useState(10);
 
       useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
@@ -707,18 +738,66 @@
 
       const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
+      const playPABroadcast = (text) => {
+        if (!('speechSynthesis' in window)) {
+          alert("Speech Synthesis not supported in this browser.");
+          return;
+        }
+        window.speechSynthesis.cancel();
+        try {
+          const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const playTone = (freq, start, duration) => {
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, start);
+            gainNode.gain.setValueAtTime(0.15, start);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, start + duration);
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start(start);
+            osc.stop(start + duration);
+          };
+          playTone(554.37, audioCtx.currentTime, 0.45);
+          playTone(440.00, audioCtx.currentTime + 0.35, 0.6);
+        } catch (e) { }
+
+        setTimeout(() => {
+          const utterance = new SpeechSynthesisUtterance(text);
+          const voices = window.speechSynthesis.getVoices();
+          const voice = voices.find(v => v.name.includes("Google") && v.lang.startsWith("en")) 
+                        || voices.find(v => v.lang.startsWith("en") && v.name.toLowerCase().includes("male"))
+                        || voices.find(v => v.lang.startsWith("en"))
+                        || voices[0];
+          if (voice) utterance.voice = voice;
+          utterance.pitch = 0.92;
+          utterance.rate = 0.95;
+          window.speechSynthesis.speak(utterance);
+        }, 1000);
+      };
+
       const fetchData = useCallback(async () => {
         try {
-          const [z, s, a] = await Promise.all([
-            fetch('/zones').then(r => r.json()),
-            fetch('/stats').then(r => r.json()),
-            fetch('/alerts').then(r => r.json())
-          ]);
-          setZones(z);
-          setStats(s);
-          setAlerts(a.alerts || []);
+          if (predictiveMode) {
+            const [predData, a] = await Promise.all([
+              fetch(`/stats/predicted?horizon=${predictiveHorizon}`).then(r => r.json()),
+              fetch('/alerts').then(r => r.json())
+            ]);
+            setZones(predData.zones);
+            setStats(predData);
+            setAlerts(a.alerts || []);
+          } else {
+            const [z, s, a] = await Promise.all([
+              fetch('/zones').then(r => r.json()),
+              fetch('/stats').then(r => r.json()),
+              fetch('/alerts').then(r => r.json())
+            ]);
+            setZones(z);
+            setStats(s);
+            setAlerts(a.alerts || []);
+          }
         } catch (e) { }
-      }, []);
+      }, [predictiveMode, predictiveHorizon]);
 
       useEffect(() => {
         fetchData();
@@ -961,11 +1040,87 @@
                     </div>
                   )}
 
+                  {/* AI Predictive Controller Widget */}
+                  <div className="stat-card fade-in" style={{
+                    background: 'var(--bg-card)',
+                    border: `1px solid ${predictiveMode ? 'var(--accent)' : 'var(--border)'}`,
+                    borderRadius: 20,
+                    padding: '20px 24px',
+                    marginBottom: 24,
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 16,
+                    boxShadow: predictiveMode ? '0 0 15px rgba(16, 185, 129, 0.15)' : 'none',
+                    transition: 'all 0.3s ease'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12,
+                        background: predictiveMode ? 'var(--accent-soft)' : 'var(--bg-primary)',
+                        color: predictiveMode ? 'var(--accent)' : 'var(--text-secondary)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 22,
+                        fontWeight: 900
+                      }}>
+                        🔮
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          AI Predictive Horizon Forecast
+                          {predictiveMode && <span style={{ background: 'var(--accent)', color: 'white', fontSize: 9, fontWeight: 900, padding: '2px 8px', borderRadius: 20 }}>FORECASTING ACTIVE</span>}
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
+                          {predictiveMode 
+                            ? `Displaying forecasted stadium bottleneck predictions (+${predictiveHorizon} minutes ahead).`
+                            : "Predict crowd surges, line queue lengths, and restroom wait times before they occur."}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+                      {predictiveMode && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', minWidth: 100 }}>
+                            Horizon: <b>{predictiveHorizon} min</b>
+                          </span>
+                          <input 
+                            type="range" 
+                            min="5" 
+                            max="30" 
+                            step="5"
+                            value={predictiveHorizon} 
+                            onChange={(e) => setPredictiveHorizon(parseInt(e.target.value))}
+                            style={{ accentColor: 'var(--accent)', width: 120, cursor: 'pointer' }}
+                          />
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setPredictiveMode(!predictiveMode)}
+                        style={{
+                          padding: '10px 24px',
+                          borderRadius: 12,
+                          background: predictiveMode ? 'var(--accent)' : 'var(--bg-primary)',
+                          color: predictiveMode ? 'white' : 'var(--text-primary)',
+                          border: `1px solid ${predictiveMode ? 'var(--accent)' : 'var(--border)'}`,
+                          fontWeight: 800,
+                          fontSize: 13,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {predictiveMode ? 'Disable Predictive Mode' : '🔮 Enable Predictive View'}
+                      </button>
+                    </div>
+                  </div>
+
                   <StadiumGoogleMap 
                     zones={zones} 
                     activeZone={null} 
                     onZoneClick={handleZoneClick} 
-                    stadiumState={stats?.stadium_state} 
+                    stadiumState={stats?.stadium_state}
+                    predictiveMode={predictiveMode}
+                    predictiveHorizon={predictiveHorizon}
                   />
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -1019,14 +1174,36 @@
                              </div>
                            </div>
                          </div>
-                         {!a.acknowledged && (
-                           <div 
-                             style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13, fontWeight: 700, cursor: 'pointer', background: 'var(--bg-primary)' }}
-                             onClick={() => fetch(`/alerts/acknowledge/${a.id}`, {method: 'POST'}).then(fetchData)}
-                           >
-                             Acknowledge
-                           </div>
-                         )}
+                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' }}>
+                            {a.pa_message && (
+                              <button 
+                                style={{ 
+                                  padding: '8px 16px', 
+                                  borderRadius: 10, 
+                                  border: '1px solid var(--accent)', 
+                                  fontSize: 12, 
+                                  fontWeight: 800, 
+                                  cursor: 'pointer', 
+                                  background: 'var(--accent-soft)', 
+                                  color: 'var(--accent)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 6
+                                }}
+                                onClick={() => playPABroadcast(a.pa_message)}
+                              >
+                                📣 PA Audio
+                              </button>
+                            )}
+                            {!a.acknowledged && (
+                              <div 
+                                style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: 'var(--bg-primary)', textAlign: 'center' }}
+                                onClick={() => fetch(`/alerts/acknowledge/${a.id}`, {method: 'POST'}).then(fetchData)}
+                              >
+                                Acknowledge
+                              </div>
+                            )}
+                          </div>
                        </div>
                      ))
                    )}

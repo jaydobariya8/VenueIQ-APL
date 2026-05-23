@@ -180,6 +180,86 @@ def get_stats() -> dict:
     }
 
 
+def get_predicted_state(horizon_min: int) -> dict:
+    """
+    Computes a simulated future state of all stadium zones and stats
+    after 'horizon_min' minutes have elapsed, factoring in match breaks.
+    """
+    # 1. Deepcopy the current store
+    future = copy.deepcopy(_store)
+    
+    # 2. Advance match time
+    mc = future["match_context"]
+    ss = future["stadium_state"]
+    
+    current_min = mc.get("current_minute", 0)
+    future_min = min(120, current_min + horizon_min)
+    mc["current_minute"] = future_min
+    
+    # Advance overs in the future context (roughly 1 over every 4 minutes)
+    try:
+        over_num = min(20, future_min // 4)
+        ball_num = (future_min % 4) * 1 + random.randint(0, 1)
+        ball_num = min(ball_num, 5)
+        mc["overs"] = f"{over_num}.{ball_num}"
+    except Exception:
+        pass
+        
+    # Calculate time to innings break in the future
+    innings_break = mc.get("innings_break_minute", 90)
+    time_to_break = innings_break - future_min
+    
+    # 3. Simulate future zone surges based on match timeline
+    # Innings break surge: fans head to restrooms and food stalls
+    is_break_period = -5 <= time_to_break <= 15
+    is_approaching_break = 0 < time_to_break <= 8
+    
+    for key, zone in future["zones"].items():
+        # Baseline drift
+        drift = random.randint(-2, 2)
+        zone["occupancy_percent"] = max(10, min(100, zone["occupancy_percent"] + drift))
+        
+        # Apply structured forecasting logic
+        if is_break_period:
+            if zone["type"] == "restroom":
+                zone["occupancy_percent"] = min(100, zone["occupancy_percent"] + 25)
+                zone["wait_time_min"] = min(45, zone["wait_time_min"] + 8)
+                zone["emotion"]["avg_sentiment_score"] = round(max(0.2, zone["emotion"]["avg_sentiment_score"] - 0.12), 2)
+            elif zone["type"] == "food":
+                zone["occupancy_percent"] = min(100, zone["occupancy_percent"] + 20)
+                zone["wait_time_min"] = min(40, zone["wait_time_min"] + 10)
+                zone["emotion"]["avg_sentiment_score"] = round(max(0.2, zone["emotion"]["avg_sentiment_score"] - 0.10), 2)
+        elif is_approaching_break:
+            # Anticipatory restroom surge
+            if zone["type"] == "restroom":
+                zone["occupancy_percent"] = min(100, zone["occupancy_percent"] + 12)
+                zone["wait_time_min"] = min(45, zone["wait_time_min"] + 3)
+        
+        # Sync headcount
+        zone["count"] = round(zone["occupancy_percent"] * zone["capacity"] / 100)
+        
+    # 4. Compute predicted stats
+    zones = future["zones"]
+    avg_occ  = sum(z["occupancy_percent"] for z in zones.values()) / len(zones)
+    avg_sent = sum(z["emotion"]["avg_sentiment_score"] for z in zones.values()) / len(zones)
+    crowded  = [k for k, v in zones.items() if v["occupancy_percent"] > 75]
+    clear    = [k for k, v in zones.items() if v["occupancy_percent"] < 50]
+    density  = "LOW" if avg_occ < 50 else "MEDIUM" if avg_occ < 72 else "HIGH"
+    
+    return {
+        "avg_occupancy_percent": round(avg_occ, 1),
+        "avg_sentiment_score":   round(avg_sent, 2),
+        "crowd_density":         density,
+        "crowded_zones":         crowded,
+        "clear_zones":           clear,
+        "total_zones":           len(zones),
+        "match_context":         mc,
+        "stadium_state":         ss,
+        "zones":                 zones,
+        "horizon_minutes":       horizon_min
+    }
+
+
 # ── Write ─────────────────────────────────────────────────────────────────────
 
 def update_zone(name: str, patch: dict) -> bool:
