@@ -221,10 +221,14 @@
       </div>
     </div>
 
-    <div class="controls">
-      <button class="btn-start" id="startBtn" disabled onclick="startCamera()">📷 Start Camera</button>
+    <div class="controls" style="display:flex; flex-direction:column; gap:10px;">
+      <div style="display:flex; gap:10px; width:100%;">
+        <button class="btn-start" id="startBtn" disabled onclick="startCamera()" style="flex:1;">📷 Start Camera</button>
+        <button class="btn-start" id="uploadBtn" disabled onclick="triggerUpload()" style="flex:1; background:rgba(99,102,241,0.1); border:1px solid #6366f1; color:#818cf8;">📁 Upload Photo</button>
+        <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="handleFileUpload(event)" />
+      </div>
       <button class="btn-stop"  id="stopBtn"  onclick="stopCamera()">⏹ Stop</button>
-      <div class="status-pill" id="statusPill" style="background:var(--accent-d);color:var(--accent);">
+      <div class="status-pill" id="statusPill" style="background:var(--accent-d);color:var(--accent); text-align:center;">
         Loading model…
       </div>
       <div class="fps-label" id="fpsLabel">-- FPS</div>
@@ -297,6 +301,7 @@
   const overlay  = document.getElementById('overlay');
   const scanLine = document.getElementById('scanLine');
   const startBtn = document.getElementById('startBtn');
+  const uploadBtn = document.getElementById('uploadBtn');
   const stopBtn  = document.getElementById('stopBtn');
   const statusPill = document.getElementById('statusPill');
   const fpsLabel   = document.getElementById('fpsLabel');
@@ -353,6 +358,7 @@
       ovStatus.style.color   = 'var(--green)';
       ovStatus.textContent   = 'COCO-SSD loaded successfully';
       startBtn.disabled      = false;
+      uploadBtn.disabled     = false;
       setStatus('✅ Model Ready', 'var(--green)', 'var(--green-d)');
     } catch (e) {
       ovTitle.textContent  = '❌ Load Failed';
@@ -435,6 +441,51 @@
     fpsLabel.textContent   = '-- FPS';
     updateUI([], []);
     setStatus('✅ Model Ready', 'var(--green)', 'var(--green-d)');
+  }
+
+  function triggerUpload() {
+    document.getElementById('fileInput').click();
+  }
+
+  async function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (detecting) {
+      stopCamera();
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = async function() {
+        canvas.width  = img.width;
+        canvas.height = img.height;
+        overlay.style.display  = 'none';
+        scanLine.style.display = 'none';
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+
+        setStatus('🎯 Scanning Photo…', 'var(--accent)', 'var(--accent-d)');
+
+        try {
+          const preds = await model.detect(img);
+          const people = preds.filter(p => p.class === 'person');
+
+          drawBoxes(preds);
+          updateUI(people, preds);
+          syncBtn.disabled = false;
+          
+          setStatus('✅ Scan Complete', 'var(--green)', 'var(--green-d)');
+        } catch (err) {
+          console.error("Static image analysis error:", err);
+          setStatus('❌ Detection Failed', 'var(--red)', 'var(--red-d)');
+        }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
   }
 
   // ── Detection loop ────────────────────────────────────────────────────────
