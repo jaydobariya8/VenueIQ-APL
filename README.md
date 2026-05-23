@@ -44,35 +44,6 @@ StadiumPulse is an end-to-end **agentic AI platform** that replaces fragmented, 
 
 ---
 
-## 🏆 Hackathon Evaluation Rubric & Point Map (Max 95/95 Points)
-
-StadiumPulse is engineered to achieve a perfect score across all categories defined in the **Build with AI Agentic Premier League** official judging rubrics:
-
-### 📊 Phase 1: Preliminary Screening Rubric (40 + 5 Points)
-
-
-| Criterion | Points | How StadiumPulse Satisfies It |
-|---|---|---|
-| **Functional Fulfillment** | **15 / 15** | Genuinely solves the core stadium threat (crowd bottlenecks/exit crises) by integrating live sensor simulations, real-time camera telemetry, and automated PA/steward alerting layers. |
-| **Scalability & Security** | **10 / 10** | Safe environment storage (`.env`), strict Pydantic payload verification, 15-min per-zone alert rate cooldowns, and a highly scalable browser-side `TensorFlow.js` pipeline that offloads compute costs. |
-| **Static Code Analysis** | **15 / 15** | Implements clean, modular Python codebase decoupled across dedicated features (`store.py`, `agent.py`, `alerts.py`). Leverages Google AI SDKs (`google-genai` for Gemini 2.5 Pro/Flash and `google-cloud-vision` API). |
-| **GCP Deployment (Bonus)** | **5 / 5** | Fully Dockerized containerized build, hosted live on serverless **Google Cloud Run** at [venueiq-740813524695.asia-south1.run.app](https://venueiq-740813524695.asia-south1.run.app/). |
-
----
-
-### 🎤 Phase 2: Live Pitch & Q&A Evaluation Rubric (50 Points)
-
-
-| Criterion | Points | How StadiumPulse Satisfies It |
-|---|---|---|
-| **Innovation & Agentic Depth** | **15 / 15** | Utilizes an advanced central classification dispatcher routing tasks to three specialized, system-prompt-tailored Gemini agents (Routing, Comms, Incident Commander) leveraging real-time tool-calling loops over five live tools. |
-| **Live Demo Execution** | **10 / 10** | A seamless, bug-free "Happy Path" local workflow featuring live face expression recognition (`face-api.js` over your webcam), dynamic mood-ring feedback, and instant sync updates to the digital twin map. |
-| **Presentation & Pitching** | **10 / 10** | Explicitly articulates **The Threat, The Gap, and The Need** (matching the exact presentation guidelines) to demonstrate deep context and domain authority. |
-| **Q&A & Technical Defense** | **15 / 15** | Robust architectural justifications: built-in template-based AI fallback resilience (guarantees the demo never breaks even at quota zero), async concurrency handles thousands of connections, and browser-decoupled GPU analytics. |
-
----
-
----
 
 ## ✨ Key Features
 
